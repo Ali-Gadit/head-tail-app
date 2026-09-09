@@ -12,21 +12,39 @@ export function processAction(room: Room, playerId: string, action: UserAction):
       if (action.type === 'START_MATCH' && isP1) {
         if (room.capacity === 2 && room.player2_id) {
           const isBot = room.player2_id === '00000000-0000-0000-0000-000000000000';
-          return {
-            status: 'team_selection',
-            overs_limit: action.oversLimit,
-            wickets_limit: action.wicketsLimit,
-            p2_team: isBot ? 'Australia' : null,
-            p2_players: isBot ? ['David Warner', 'Steve Smith', 'Pat Cummins', 'Mitchell Starc', 'Glenn Maxwell', 'Travis Head', 'Mitchell Marsh', 'Adam Zampa', 'Josh Hazlewood', 'Josh Inglis', 'Marnus Labuschagne'].slice(0, action.wicketsLimit + 1) : [],
-            p1_team: null, p1_players: [],
-            p3_team: null, p3_players: [],
-            p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
-            p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
-            p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0,
-            current_batsman: room.player1_id,
-            current_bowler: room.player2_id,
-            stage: null
-          };
+          if (isBot) {
+            return {
+              status: 'team_selection',
+              overs_limit: action.oversLimit,
+              wickets_limit: action.wicketsLimit,
+              p2_team: 'Australia',
+              p2_players: ['David Warner', 'Steve Smith', 'Pat Cummins', 'Mitchell Starc', 'Glenn Maxwell', 'Travis Head', 'Mitchell Marsh', 'Adam Zampa', 'Josh Hazlewood', 'Josh Inglis', 'Marnus Labuschagne'].slice(0, action.wicketsLimit + 1),
+              p1_team: null, p1_players: [],
+              p3_team: null, p3_players: [],
+              p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
+              p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
+              p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0,
+              current_batsman: room.player1_id,
+              current_bowler: room.player2_id,
+              stage: null
+            };
+          } else {
+            // PVP: Start with Team Toss!
+            return {
+              status: 'toss_call',
+              stage: 'team_toss',
+              current_batsman: room.player1_id,
+              current_bowler: room.player2_id,
+              overs_limit: action.oversLimit,
+              wickets_limit: action.wicketsLimit,
+              p1_team: null, p1_players: [],
+              p2_team: null, p2_players: [],
+              p3_team: null, p3_players: [],
+              p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
+              p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
+              p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0
+            };
+          }
         } else if (room.capacity === 3 && room.player2_id && room.player3_id) {
           return {
             status: 'team_selection',
@@ -58,12 +76,27 @@ export function processAction(room: Room, playerId: string, action: UserAction):
            updates.p3_players = action.players;
         }
 
-        const p1Ready = isP1 || !!room.p1_team;
-        const p2Ready = !room.player2_id || isP2 || !!room.p2_team;
-        const p3Ready = !room.player3_id || isP3 || !!room.p3_team;
+        if (room.capacity === 2 && room.stage === 'team_toss') {
+          const p1HasTeam = isP1 ? true : !!room.p1_team;
+          const p2HasTeam = isP2 ? true : !!room.p2_team;
+          
+          if (p1HasTeam && p2HasTeam) {
+             updates.status = 'toss_call';
+             updates.stage = null;
+             updates.current_batsman = room.player1_id;
+             updates.current_bowler = room.player2_id!;
+          } else {
+             updates.current_batsman = room.current_bowler;
+             updates.current_bowler = playerId;
+          }
+        } else {
+          const p1Ready = isP1 || !!room.p1_team;
+          const p2Ready = !room.player2_id || isP2 || !!room.p2_team;
+          const p3Ready = !room.player3_id || isP3 || !!room.p3_team;
 
-        if (p1Ready && p2Ready && p3Ready) {
-           updates.status = room.capacity === 3 ? 'toss_3p' : 'toss_call';
+          if (p1Ready && p2Ready && p3Ready) {
+             updates.status = room.capacity === 3 ? 'toss_3p' : 'toss_call';
+          }
         }
         return updates;
       }
@@ -157,6 +190,9 @@ export function processAction(room: Room, playerId: string, action: UserAction):
             } else {
                 return { status: 'playing', current_batsman: room.current_bowler, current_bowler: room.current_batsman, p1_throw: null, p2_throw: null, p3_throw: null };
             }
+        }
+        if (room.stage === 'team_toss') {
+            return { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null };
         }
         return { status: 'toss_decision', p1_throw: null, p2_throw: null, p3_throw: null };
       }

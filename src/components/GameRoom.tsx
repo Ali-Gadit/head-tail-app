@@ -144,6 +144,15 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     const isP3 = playerId === room.player3_id;
     const myTeam = isP1 ? room.p1_team : (isP2 ? room.p2_team : room.p3_team);
 
+    if (room.capacity === 2 && playerId !== room.current_batsman) {
+       return (
+         <View className="space-y-6 flex-1 items-center justify-center">
+            <Text className="text-white text-3xl font-black uppercase text-center mb-4">Opponent's Turn</Text>
+            <Text className="text-white/50 font-bold animate-pulse text-lg text-center">They won the toss and are picking their team...</Text>
+         </View>
+       );
+    }
+
     if (myTeam) {
        return (
          <View className="space-y-6 flex-1 items-center justify-center">
@@ -154,6 +163,8 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
        );
     }
 
+    const takenTeams = [room.p1_team, room.p2_team, room.p3_team].filter(Boolean);
+    const availableTeams = TEAM_NAMES.filter(t => !takenTeams.includes(t));
     const requiredPlayers = room.wickets_limit + 1;
     const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers;
 
@@ -167,11 +178,11 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
 
     return (
       <View className="space-y-4 flex-1">
-        <Text className="text-white text-2xl font-black uppercase text-center mb-2">Select Team</Text>
+        <Text className="text-white text-2xl font-black uppercase text-center mb-2">{room.capacity === 2 ? 'Your Turn to Draft' : 'Select Team'}</Text>
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {!selectedTeam ? (
-            <View className="flex-row flex-wrap gap-3 pb-8">
-              {TEAM_NAMES.map(t => (
+            <View className="flex-row flex-wrap gap-3 pb-8 justify-center">
+              {availableTeams.map(t => (
                 <TouchableOpacity key={t} onPress={() => setSelectedTeam(t)} className="w-[47%] bg-white/10 p-4 rounded-2xl border border-white/20 items-center">
                   <Text className="text-white font-black">{t}</Text>
                 </TouchableOpacity>
@@ -179,26 +190,27 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
             </View>
           ) : (
             <View className="space-y-4 pb-8">
-              <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center justify-between mb-4">
                 <TouchableOpacity onPress={() => { setSelectedTeam(null); setSelectedPlayers([]); }} className="bg-white/20 px-4 py-2 rounded-full">
                   <Text className="text-white font-bold text-xs uppercase">← Back</Text>
                 </TouchableOpacity>
                 <Text className="text-white font-black text-xl">{selectedTeam}</Text>
               </View>
 
-              <View className="bg-indigo-900/40 p-4 rounded-2xl mb-2">
-                <Text className="text-center text-yellow-400 font-bold">Select {requiredPlayers} players ({selectedPlayers.length}/{requiredPlayers})</Text>
+              <View className="bg-indigo-900/40 p-4 rounded-2xl mb-2 border border-indigo-500/30">
+                <Text className="text-yellow-400 font-bold text-center">Select {requiredPlayers} players ({selectedPlayers.length}/{requiredPlayers})</Text>
               </View>
 
               <View className="flex-row flex-wrap gap-2">
                 {CRICKET_TEAMS[selectedTeam].map(p => {
                   const isSelected = selectedPlayers.includes(p);
+                  const disabled = !isSelected && selectedPlayers.length >= requiredPlayers;
                   return (
                     <TouchableOpacity 
                       key={p} 
                       onPress={() => handlePlayerSelect(p)}
-                      disabled={!isSelected && selectedPlayers.length >= requiredPlayers}
-                      className={`w-[48%] p-3 rounded-xl border ${isSelected ? 'bg-green-500 border-green-400' : 'bg-white/10 border-white/20'}`}
+                      disabled={disabled}
+                      className={`w-[48%] p-3 rounded-xl border ${isSelected ? 'bg-green-500 border-green-400' : 'bg-white/10 border-white/20'} ${disabled ? 'opacity-50' : ''}`}
                     >
                       <Text className={`text-center font-bold text-xs ${isSelected ? 'text-white' : 'text-white/70'}`}>{p}</Text>
                     </TouchableOpacity>
@@ -227,7 +239,10 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
       <View className="space-y-6">
         <Scoreboard room={room} playerId={playerId} />
         <View className="bg-white/10 p-6 rounded-3xl items-center">
-          <Text className="text-2xl font-black text-white uppercase text-center mb-6">
+          <Text className="text-2xl font-black text-yellow-300 uppercase text-center mb-6">
+            {room.stage === 'team_toss' ? 'Team Selection Toss!' : 'Match Toss Time!'}
+          </Text>
+          <Text className="text-xl font-bold text-white uppercase text-center mb-6">
             {isCaller ? 'Call the Toss!' : 'Opponent is calling...'}
           </Text>
           {isCaller ? (
