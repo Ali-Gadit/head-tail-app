@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
 import { Room, UserAction } from '../lib/types';
 import Scoreboard from './Scoreboard';
 import HandSelector from './HandSelector';
@@ -23,6 +23,9 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const [wicketsLimit, setWicketsLimit] = useState<number>(1);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [isCustomTeam, setIsCustomTeam] = useState(false);
+  const [customTeamName, setCustomTeamName] = useState('');
+  const [customPlayerNames, setCustomPlayerNames] = useState<string[]>([]);
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
   
@@ -167,6 +170,12 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     const requiredPlayers = room.wickets_limit + 1;
     const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers;
 
+    const isCustomSubmitEnabled = 
+      customTeamName.trim().length > 0 && 
+      !takenTeams.includes(customTeamName.trim()) && 
+      customPlayerNames.length === requiredPlayers && 
+      customPlayerNames.every(name => name.trim().length > 0);
+
     const handlePlayerSelect = (p: string) => {
       if (selectedPlayers.includes(p)) {
         setSelectedPlayers(prev => prev.filter(x => x !== p));
@@ -175,26 +184,99 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
       }
     };
 
+    const handleCustomPlayerNameChange = (index: number, value: string) => {
+      const newNames = [...customPlayerNames];
+      newNames[index] = value;
+      setCustomPlayerNames(newNames);
+    };
+
     return (
       <View className="space-y-4 flex-1">
         <Text className="text-white text-2xl font-black uppercase text-center mb-2">{room.capacity === 2 ? 'Your Turn to Draft' : 'Select Team'}</Text>
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {!selectedTeam ? (
-            <View className="flex-row flex-wrap gap-3 pb-8 justify-center">
-              {TEAM_NAMES.map(t => {
-                const isTaken = takenTeams.includes(t);
-                return (
-                  <TouchableOpacity 
-                    key={t} 
-                    onPress={() => !isTaken && setSelectedTeam(t)} 
-                    disabled={isTaken}
-                    className={`w-[47%] p-4 rounded-2xl border items-center ${isTaken ? 'bg-red-500/20 border-red-500/50 opacity-60' : 'bg-white/10 border-white/20'}`}
-                  >
-                    <Text className="text-white font-black">{t}</Text>
-                    {isTaken && <Text className="text-red-400 font-bold text-[10px] mt-1 uppercase tracking-widest">Taken by Rival</Text>}
-                  </TouchableOpacity>
-                );
-              })}
+          {!selectedTeam && !isCustomTeam ? (
+            <View className="flex-1 space-y-4 pb-8">
+              <View className="flex-row flex-wrap gap-3 justify-center">
+                {TEAM_NAMES.map(t => {
+                  const isTaken = takenTeams.includes(t);
+                  return (
+                    <TouchableOpacity 
+                      key={t} 
+                      onPress={() => !isTaken && setSelectedTeam(t)} 
+                      disabled={isTaken}
+                      className={`w-[47%] p-4 rounded-2xl border items-center ${isTaken ? 'bg-red-500/20 border-red-500/50 opacity-60' : 'bg-white/10 border-white/20'}`}
+                    >
+                      <Text className="text-white font-black">{t}</Text>
+                      {isTaken && <Text className="text-red-400 font-bold text-[10px] mt-1 uppercase tracking-widest">Taken by Rival</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View className="flex-row items-center gap-4 py-2 opacity-50">
+                <View className="flex-1 border-t border-white/20"></View>
+                <Text className="text-xs text-white font-black uppercase tracking-widest">OR</Text>
+                <View className="flex-1 border-t border-white/20"></View>
+              </View>
+
+              <TouchableOpacity 
+                onPress={() => {
+                  setIsCustomTeam(true);
+                  setCustomPlayerNames(Array(requiredPlayers).fill(''));
+                }} 
+                className="w-full bg-blue-500/20 border border-blue-400/50 p-4 rounded-2xl items-center shadow-lg active:scale-95 mt-2"
+              >
+                <Text className="text-blue-300 font-black uppercase tracking-wider text-lg">✏️ Create Custom Team</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isCustomTeam ? (
+            <View className="space-y-4 pb-8">
+              <View className="flex-row items-center justify-between mb-4">
+                <TouchableOpacity onPress={() => { setIsCustomTeam(false); setCustomTeamName(''); setCustomPlayerNames([]); }} className="bg-white/20 px-4 py-2 rounded-full">
+                  <Text className="text-white font-bold text-xs uppercase">← Back</Text>
+                </TouchableOpacity>
+                <Text className="text-white font-black text-xl">Custom Team</Text>
+              </View>
+
+              <View className="bg-indigo-900/40 p-4 rounded-2xl mb-2 border border-indigo-500/30 space-y-4">
+                <View>
+                  <Text className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-1">Team Name</Text>
+                  <TextInput 
+                    placeholder="e.g. Dream 11" 
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    value={customTeamName} 
+                    onChangeText={setCustomTeamName}
+                    maxLength={15}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white font-bold"
+                  />
+                  {takenTeams.includes(customTeamName.trim()) && <Text className="text-red-400 text-xs mt-1 font-bold">This team name is taken!</Text>}
+                </View>
+
+                <View>
+                  <Text className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-2">Players ({requiredPlayers} required)</Text>
+                  <View className="space-y-2">
+                    {customPlayerNames.map((name, index) => (
+                      <TextInput 
+                        key={index}
+                        placeholder={`Player ${index + 1} Name`} 
+                        placeholderTextColor="rgba(255,255,255,0.2)"
+                        value={name}
+                        onChangeText={(val) => handleCustomPlayerNameChange(index, val)}
+                        maxLength={15}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-sm font-bold mb-2"
+                      />
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: customTeamName.trim(), players: customPlayerNames.map(n => n.trim()) })}
+                disabled={!isCustomSubmitEnabled || loading}
+                className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95 mt-4"
+              >
+                <Text className="text-indigo-900 font-black text-xl uppercase tracking-wider text-center">Confirm Squad</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View className="space-y-4 pb-8">
@@ -210,7 +292,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
               </View>
 
               <View className="flex-row flex-wrap gap-2">
-                {CRICKET_TEAMS[selectedTeam].map(p => {
+                {CRICKET_TEAMS[selectedTeam!].map(p => {
                   const isSelected = selectedPlayers.includes(p);
                   const disabled = !isSelected && selectedPlayers.length >= requiredPlayers;
                   return (
@@ -227,7 +309,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
               </View>
 
               <TouchableOpacity
-                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: selectedTeam, players: selectedPlayers })}
+                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: selectedTeam!, players: selectedPlayers })}
                 disabled={!isSubmitEnabled || loading}
                 className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95 mt-4"
               >
