@@ -26,6 +26,8 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const [isCustomTeam, setIsCustomTeam] = useState(false);
   const [customTeamName, setCustomTeamName] = useState('');
   const [customPlayerNames, setCustomPlayerNames] = useState<string[]>([]);
+  const [captain, setCaptain] = useState<string | null>(null);
+  const [customCaptainIndex, setCustomCaptainIndex] = useState<number | null>(null);
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
   
@@ -168,17 +170,19 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
 
     const takenTeams = [room.p1_team, room.p2_team, room.p3_team].filter(Boolean);
     const requiredPlayers = room.wickets_limit + 1;
-    const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers;
+    const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers && captain !== null;
 
     const isCustomSubmitEnabled = 
       customTeamName.trim().length > 0 && 
       !takenTeams.includes(customTeamName.trim()) && 
       customPlayerNames.length === requiredPlayers && 
-      customPlayerNames.every(name => name.trim().length > 0);
+      customPlayerNames.every(name => name.trim().length > 0) &&
+      customCaptainIndex !== null;
 
     const handlePlayerSelect = (p: string) => {
       if (selectedPlayers.includes(p)) {
         setSelectedPlayers(prev => prev.filter(x => x !== p));
+        if (captain === p) setCaptain(null);
       } else if (selectedPlayers.length < requiredPlayers) {
         setSelectedPlayers(prev => [...prev, p]);
       }
@@ -223,6 +227,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
                 onPress={() => {
                   setIsCustomTeam(true);
                   setCustomPlayerNames(Array(requiredPlayers).fill(''));
+                  setCustomCaptainIndex(null);
                 }} 
                 className="w-full bg-blue-500/20 border border-blue-400/50 p-4 rounded-2xl items-center shadow-lg active:scale-95 mt-2"
               >
@@ -232,7 +237,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
           ) : isCustomTeam ? (
             <View className="space-y-4 pb-8">
               <View className="flex-row items-center justify-between mb-4">
-                <TouchableOpacity onPress={() => { setIsCustomTeam(false); setCustomTeamName(''); setCustomPlayerNames([]); }} className="bg-white/20 px-4 py-2 rounded-full">
+                <TouchableOpacity onPress={() => { setIsCustomTeam(false); setCustomTeamName(''); setCustomPlayerNames([]); setCustomCaptainIndex(null); }} className="bg-white/20 px-4 py-2 rounded-full">
                   <Text className="text-white font-bold text-xs uppercase">← Back</Text>
                 </TouchableOpacity>
                 <Text className="text-white font-black text-xl">Custom Team</Text>
@@ -253,25 +258,35 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
                 </View>
 
                 <View>
-                  <Text className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-2">Players ({requiredPlayers} required)</Text>
+                  <Text className="text-xs font-bold text-yellow-400 uppercase tracking-widest mb-2">Players & Captain ({requiredPlayers} required)</Text>
                   <View className="space-y-2">
                     {customPlayerNames.map((name, index) => (
-                      <TextInput 
-                        key={index}
-                        placeholder={`Player ${index + 1} Name`} 
-                        placeholderTextColor="rgba(255,255,255,0.2)"
-                        value={name}
-                        onChangeText={(val) => handleCustomPlayerNameChange(index, val)}
-                        maxLength={15}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-sm font-bold mb-2"
-                      />
+                      <View key={index} className="flex-row items-center gap-2 mb-2">
+                        <TextInput 
+                          placeholder={`Player ${index + 1} Name`} 
+                          placeholderTextColor="rgba(255,255,255,0.2)"
+                          value={name}
+                          onChangeText={(val) => handleCustomPlayerNameChange(index, val)}
+                          maxLength={15}
+                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-sm font-bold"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setCustomCaptainIndex(index)}
+                          className={`px-3 py-3 rounded-xl border ${customCaptainIndex === index ? 'bg-yellow-400 border-yellow-300' : 'bg-white/10 border-white/20'}`}
+                        >
+                          <Text className={`font-bold text-xs ${customCaptainIndex === index ? 'text-indigo-900' : 'text-white/50'}`}>CAPTAIN</Text>
+                        </TouchableOpacity>
+                      </View>
                     ))}
                   </View>
                 </View>
               </View>
 
               <TouchableOpacity
-                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: customTeamName.trim(), players: customPlayerNames.map(n => n.trim()) })}
+                onPress={() => {
+                  const finalPlayers = customPlayerNames.map((n, i) => i === customCaptainIndex ? `${n.trim()} (C)` : n.trim());
+                  takeAction({ type: 'SUBMIT_TEAM', team: customTeamName.trim(), players: finalPlayers });
+                }}
                 disabled={!isCustomSubmitEnabled || loading}
                 className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95 mt-4"
               >
@@ -281,7 +296,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
           ) : (
             <View className="space-y-4 pb-8">
               <View className="flex-row items-center justify-between mb-4">
-                <TouchableOpacity onPress={() => { setSelectedTeam(null); setSelectedPlayers([]); }} className="bg-white/20 px-4 py-2 rounded-full">
+                <TouchableOpacity onPress={() => { setSelectedTeam(null); setSelectedPlayers([]); setCaptain(null); }} className="bg-white/20 px-4 py-2 rounded-full">
                   <Text className="text-white font-bold text-xs uppercase">← Back</Text>
                 </TouchableOpacity>
                 <Text className="text-white font-black text-xl">{selectedTeam}</Text>
@@ -308,8 +323,28 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
                 })}
               </View>
 
+              {selectedPlayers.length === requiredPlayers && (
+                <View className="mt-4 bg-yellow-400/10 p-4 rounded-2xl border border-yellow-400/30">
+                  <Text className="text-center text-xs font-black uppercase text-yellow-400 tracking-widest mb-3">Select Captain</Text>
+                  <View className="flex-row flex-wrap gap-2 justify-center">
+                    {selectedPlayers.map(p => (
+                      <TouchableOpacity
+                        key={`capt-${p}`}
+                        onPress={() => setCaptain(p)}
+                        className={`w-[48%] p-3 rounded-xl border ${captain === p ? 'bg-yellow-400 border-yellow-300' : 'bg-white/10 border-white/20'}`}
+                      >
+                        <Text className={`text-center font-bold text-xs ${captain === p ? 'text-indigo-900' : 'text-white'}`}>{p}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
               <TouchableOpacity
-                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: selectedTeam!, players: selectedPlayers })}
+                onPress={() => {
+                  const finalPlayers = selectedPlayers.map(p => p === captain ? `${p} (C)` : p);
+                  takeAction({ type: 'SUBMIT_TEAM', team: selectedTeam!, players: finalPlayers });
+                }}
                 disabled={!isSubmitEnabled || loading}
                 className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95 mt-4"
               >
