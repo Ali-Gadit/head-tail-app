@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { Room, UserAction } from '../lib/types';
 import Scoreboard from './Scoreboard';
 import HandSelector from './HandSelector';
 import RevealView from './RevealView';
 import InviteFriends from './InviteFriends';
+import { CRICKET_TEAMS, TEAM_NAMES } from '../lib/teams';
 import { api } from '../lib/api';
 
 interface GameRoomProps {
@@ -17,6 +18,11 @@ interface GameRoomProps {
 export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomProps) {
   const [loading, setLoading] = useState(false);
   const [myThrowInPlay, setMyThrowInPlay] = useState<number | null>(null);
+  
+  const [oversLimit, setOversLimit] = useState<number | null>(null);
+  const [wicketsLimit, setWicketsLimit] = useState<number>(1);
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
   
@@ -85,8 +91,40 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
         )}
 
         {isHost && (
+          <View className="bg-white/10 p-4 rounded-3xl border border-white/20 mb-2">
+            <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2">Match Settings</Text>
+            
+            <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2 mt-2">Overs</Text>
+            <View className="flex-row flex-wrap gap-2 mb-4">
+              {[2, 5, 10, 20, null].map(o => (
+                <TouchableOpacity 
+                  key={o ?? 'unlimited'} 
+                  onPress={() => setOversLimit(o)} 
+                  className={`flex-1 py-2 rounded-xl border ${oversLimit === o ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}
+                >
+                  <Text className={`text-center font-black text-xs ${oversLimit === o ? 'text-indigo-900' : 'text-white/60'}`}>{o === null ? 'UNLIMITED' : o}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2">Wickets</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {[1, 2, 3, 5, 10].map(w => (
+                <TouchableOpacity 
+                  key={w} 
+                  onPress={() => setWicketsLimit(w)} 
+                  className={`flex-1 py-2 rounded-xl border ${wicketsLimit === w ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}
+                >
+                  <Text className={`text-center font-black text-xs ${wicketsLimit === w ? 'text-indigo-900' : 'text-white/60'}`}>{w}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {isHost && (
           <TouchableOpacity
-            onPress={() => takeAction({ type: 'START_MATCH' })}
+            onPress={() => takeAction({ type: 'START_MATCH', oversLimit, wicketsLimit })}
             disabled={loading || (is2P ? !room.player2_id : (!room.player2_id || !room.player3_id))}
             className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95"
           >
@@ -95,6 +133,89 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
             </Text>
           </TouchableOpacity>
         )}
+      </View>
+    );
+  }
+
+  // TEAM SELECTION
+  if (room.status === 'team_selection') {
+    const isP1 = playerId === room.player1_id;
+    const isP2 = playerId === room.player2_id;
+    const isP3 = playerId === room.player3_id;
+    const myTeam = isP1 ? room.p1_team : (isP2 ? room.p2_team : room.p3_team);
+
+    if (myTeam) {
+       return (
+         <View className="space-y-6 flex-1 items-center justify-center">
+            <Text className="text-white text-2xl font-black uppercase text-center mb-4">Team Selected!</Text>
+            <Text className="text-yellow-400 text-xl font-bold mb-8">{myTeam}</Text>
+            <Text className="text-white/50 font-bold animate-pulse">Waiting for opponent to select...</Text>
+         </View>
+       );
+    }
+
+    const requiredPlayers = room.wickets_limit + 1;
+    const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers;
+
+    const handlePlayerSelect = (p: string) => {
+      if (selectedPlayers.includes(p)) {
+        setSelectedPlayers(prev => prev.filter(x => x !== p));
+      } else if (selectedPlayers.length < requiredPlayers) {
+        setSelectedPlayers(prev => [...prev, p]);
+      }
+    };
+
+    return (
+      <View className="space-y-4 flex-1">
+        <Text className="text-white text-2xl font-black uppercase text-center mb-2">Select Team</Text>
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {!selectedTeam ? (
+            <View className="flex-row flex-wrap gap-3 pb-8">
+              {TEAM_NAMES.map(t => (
+                <TouchableOpacity key={t} onPress={() => setSelectedTeam(t)} className="w-[47%] bg-white/10 p-4 rounded-2xl border border-white/20 items-center">
+                  <Text className="text-white font-black">{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View className="space-y-4 pb-8">
+              <View className="flex-row items-center justify-between">
+                <TouchableOpacity onPress={() => { setSelectedTeam(null); setSelectedPlayers([]); }} className="bg-white/20 px-4 py-2 rounded-full">
+                  <Text className="text-white font-bold text-xs uppercase">← Back</Text>
+                </TouchableOpacity>
+                <Text className="text-white font-black text-xl">{selectedTeam}</Text>
+              </View>
+
+              <View className="bg-indigo-900/40 p-4 rounded-2xl mb-2">
+                <Text className="text-center text-yellow-400 font-bold">Select {requiredPlayers} players ({selectedPlayers.length}/{requiredPlayers})</Text>
+              </View>
+
+              <View className="flex-row flex-wrap gap-2">
+                {CRICKET_TEAMS[selectedTeam].map(p => {
+                  const isSelected = selectedPlayers.includes(p);
+                  return (
+                    <TouchableOpacity 
+                      key={p} 
+                      onPress={() => handlePlayerSelect(p)}
+                      disabled={!isSelected && selectedPlayers.length >= requiredPlayers}
+                      className={`w-[48%] p-3 rounded-xl border ${isSelected ? 'bg-green-500 border-green-400' : 'bg-white/10 border-white/20'}`}
+                    >
+                      <Text className={`text-center font-bold text-xs ${isSelected ? 'text-white' : 'text-white/70'}`}>{p}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => takeAction({ type: 'SUBMIT_TEAM', team: selectedTeam, players: selectedPlayers })}
+                disabled={!isSubmitEnabled || loading}
+                className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95 mt-4"
+              >
+                <Text className="text-indigo-900 font-black text-xl uppercase tracking-wider text-center">Confirm Squad</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
       </View>
     );
   }

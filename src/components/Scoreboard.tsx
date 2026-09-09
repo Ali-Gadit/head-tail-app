@@ -14,12 +14,12 @@ export default function Scoreboard({ room, playerId }: ScoreboardProps) {
     { id: room.player3_id, score: room.p3_score, label: room.p3_name || 'P3' },
   ].slice(0, room.capacity);
 
-  if (room.status === 'waiting' || room.status === 'toss_3p') {
+  if (room.status === 'waiting' || room.status === 'team_selection' || room.status === 'toss_3p') {
     return (
       <View className="flex flex-col gap-3">
         {room.bet_amount > 0 && (
           <View className="mx-auto bg-green-500 px-4 py-1 rounded-full shadow-lg flex-row items-center gap-1 self-center">
-            <Text className="text-white text-[10px] font-black uppercase tracking-widest">💰 {room.bet_amount * room.capacity} POT</Text>
+            <Text className="text-white text-[10px] font-black uppercase tracking-widest">dY' {room.bet_amount * room.capacity} POT</Text>
           </View>
         )}
         <View className="flex-row justify-around items-center p-4 bg-white/10 rounded-2xl border border-white/20">
@@ -39,8 +39,25 @@ export default function Scoreboard({ room, playerId }: ScoreboardProps) {
     );
   }
 
-  const isBatsman = playerId === room.current_batsman;
-  const isBowler = playerId === room.current_bowler;
+  const getWickets = (id: string | null) => {
+    if (id === room.player1_id) return room.p1_wickets_lost || 0;
+    if (id === room.player2_id) return room.p2_wickets_lost || 0;
+    return room.p3_wickets_lost || 0;
+  };
+
+  const getBalls = (id: string | null) => {
+    if (id === room.player1_id) return room.p1_balls_faced || 0;
+    if (id === room.player2_id) return room.p2_balls_faced || 0;
+    return room.p3_balls_faced || 0;
+  };
+  const formatOvers = (balls: number) => `${Math.floor(balls / 6)}.${balls % 6}`;
+
+  const getSquadName = (id: string | null) => {
+    if (id === room.player1_id && room.p1_players?.length > 0) return room.p1_players[room.p1_current_player_index || 0];
+    if (id === room.player2_id && room.p2_players?.length > 0) return room.p2_players[room.p2_current_player_index || 0];
+    if (id === room.player3_id && room.p3_players?.length > 0) return room.p3_players[room.p3_current_player_index || 0];
+    return null;
+  };
 
   return (
     <View className="space-y-4">
@@ -53,7 +70,7 @@ export default function Scoreboard({ room, playerId }: ScoreboardProps) {
             </View>
             {room.bet_amount > 0 && (
               <View className="bg-green-500 px-4 py-1 rounded-full shadow-lg flex-row items-center gap-1">
-                <Text className="text-white text-[10px] font-black uppercase tracking-widest">💰 {room.bet_amount * room.capacity} POT</Text>
+                <Text className="text-white text-[10px] font-black uppercase tracking-widest">dY' {room.bet_amount * room.capacity} POT</Text>
               </View>
             )}
          </View>
@@ -70,16 +87,32 @@ export default function Scoreboard({ room, playerId }: ScoreboardProps) {
         {players.filter(p => p.id === room.current_batsman || p.id === room.current_bowler).map((p, i) => {
             const isMe = p.id === playerId;
             const isBat = p.id === room.current_batsman;
-            const showRole = room.status === 'playing';
-            const name = p.id === playerId ? 'YOU' : (p.label === 'Exited' ? 'LEFT' : p.label);
+            const showRole = room.status === 'playing' || room.status === 'reveal';
+            const baseName = p.id === playerId ? 'YOU' : (p.label === 'Exited' ? 'LEFT' : p.label);
+            const squadName = getSquadName(p.id);
+            const wickets = getWickets(p.id);
+            const balls = getBalls(p.id);
             
             return (
                 <View key={i} className={`flex-1 p-4 rounded-3xl border flex-col items-center justify-center relative ${isMe ? 'bg-white/20 border-white/30' : 'bg-white/5 border-white/10'}`}>
                     {(isBat && showRole) && <View className="absolute top-2 right-2 w-2 h-2 bg-green-400 rounded-full" />}
                     <Text className="text-[10px] text-white uppercase font-black tracking-widest opacity-60 mb-1 text-center" numberOfLines={1}>
-                        {name} {showRole ? (isBat ? '(BAT)' : '(BOWL)') : ''}
+                        {baseName} {showRole ? (isBat ? '(BAT)' : '(BOWL)') : ''}
                     </Text>
-                    <Text className="text-4xl text-white font-black">{p.score}</Text>
+                    
+                    {squadName && (
+                      <Text className="text-[10px] text-yellow-400 font-bold mb-1" numberOfLines={1}>{squadName}</Text>
+                    )}
+
+                    <Text className="text-4xl text-white font-black">
+                        {p.score}{isBat && room.wickets_limit > 1 ? <Text className="text-2xl opacity-70">/{wickets}</Text> : ''}
+                    </Text>
+                    
+                    {isBat && (room.overs_limit || room.wickets_limit > 1) && (
+                      <Text className="text-[10px] text-white/50 font-bold mt-1">
+                        {formatOvers(balls)} overs
+                      </Text>
+                    )}
                 </View>
             )
         })}

@@ -20,7 +20,7 @@ export default function OfflineApp({ onRetry }: { onRetry: () => void }) {
       p3_name: null,
       capacity: 2,
       bet_amount: 0,
-      status: 'toss_call',
+      status: 'waiting',
       toss_call: null,
       toss_choices: {},
       p1_throw: null,
@@ -36,7 +36,24 @@ export default function OfflineApp({ onRetry }: { onRetry: () => void }) {
       target: null,
       winner: null,
       stage: null,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      overs_limit: null,
+      wickets_limit: 1,
+      p1_wickets_lost: 0,
+      p2_wickets_lost: 0,
+      p3_wickets_lost: 0,
+      p1_balls_faced: 0,
+      p2_balls_faced: 0,
+      p3_balls_faced: 0,
+      p1_team: null,
+      p2_team: null,
+      p3_team: null,
+      p1_players: [],
+      p2_players: [],
+      p3_players: [],
+      p1_current_player_index: 0,
+      p2_current_player_index: 0,
+      p3_current_player_index: 0
     });
   };
 

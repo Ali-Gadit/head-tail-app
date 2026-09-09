@@ -45,9 +45,7 @@ export const api = {
     if (isBot) {
       insertData.player2_id = BOT_UUID;
       insertData.p2_name = 'Computer';
-      insertData.status = 'toss_call';
-      insertData.current_batsman = player1_id;
-      insertData.current_bowler = BOT_UUID;
+      // Do NOT set status to toss_call here. Keep it 'waiting' so the Host can configure Match Settings.
     }
 
     const { data, error } = await supabase.from('rooms').insert([insertData]).select().single();
@@ -100,10 +98,8 @@ export const api = {
       .update({
         player2_id: BOT_UUID,
         p2_name: 'Computer',
-        status: 'toss_call',
-        current_batsman: p1Id,
-        current_bowler: BOT_UUID,
         is_public: false
+        // Keep status as 'waiting' so host can configure Overs and Wickets
       })
       .eq('id', roomId)
       .is('player2_id', null)
