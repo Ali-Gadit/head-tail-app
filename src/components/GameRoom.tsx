@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
+import { useWebRTC } from '../hooks/useWebRTC';
 import { Room, UserAction } from '../lib/types';
 import Scoreboard from './Scoreboard';
 import HandSelector from './HandSelector';
@@ -30,6 +31,8 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const [customCaptainIndex, setCustomCaptainIndex] = useState<number | null>(null);
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
+  const { micEnabled, speakerEnabled, toggleMic, toggleSpeaker } = useWebRTC(room.id, playerId);
+  const renderContent = () => {
   
   useEffect(() => {
     if (myDbThrow === null) {
@@ -504,4 +507,21 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   }
 
   return null;
+  };
+
+  return (
+    <View className="flex-1">
+      <View className="absolute top-0 right-0 z-50 flex-row gap-2">
+        <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
+          <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? 'bg-blue-500 border-blue-400' : 'bg-gray-500/80 border-gray-400/50'}`}>
+          <Text className="text-lg">{speakerEnabled ? '🔊' : '🔈'}</Text>
+        </TouchableOpacity>
+      </View>
+      {renderContent()}
+    </View>
+  );
 }
+
+
