@@ -164,7 +164,6 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     }
 
     const takenTeams = [room.p1_team, room.p2_team, room.p3_team].filter(Boolean);
-    const availableTeams = TEAM_NAMES.filter(t => !takenTeams.includes(t));
     const requiredPlayers = room.wickets_limit + 1;
     const isSubmitEnabled = selectedTeam !== null && selectedPlayers.length === requiredPlayers;
 
@@ -182,11 +181,20 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {!selectedTeam ? (
             <View className="flex-row flex-wrap gap-3 pb-8 justify-center">
-              {availableTeams.map(t => (
-                <TouchableOpacity key={t} onPress={() => setSelectedTeam(t)} className="w-[47%] bg-white/10 p-4 rounded-2xl border border-white/20 items-center">
-                  <Text className="text-white font-black">{t}</Text>
-                </TouchableOpacity>
-              ))}
+              {TEAM_NAMES.map(t => {
+                const isTaken = takenTeams.includes(t);
+                return (
+                  <TouchableOpacity 
+                    key={t} 
+                    onPress={() => !isTaken && setSelectedTeam(t)} 
+                    disabled={isTaken}
+                    className={`w-[47%] p-4 rounded-2xl border items-center ${isTaken ? 'bg-red-500/20 border-red-500/50 opacity-60' : 'bg-white/10 border-white/20'}`}
+                  >
+                    <Text className="text-white font-black">{t}</Text>
+                    {isTaken && <Text className="text-red-400 font-bold text-[10px] mt-1 uppercase tracking-widest">Taken by Rival</Text>}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View className="space-y-4 pb-8">
