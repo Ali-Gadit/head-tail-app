@@ -9,6 +9,7 @@ import GameRoom from './src/components/GameRoom';
 import Friends from './src/components/Friends';
 import WorldChat from './src/components/WorldChat';
 import NotificationManager from './src/components/NotificationManager';
+import Leaderboard from './src/components/Leaderboard';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
@@ -148,15 +149,19 @@ function Dashboard() {
 
               <View className="flex-row items-center gap-2 mt-3">
                 <View className="bg-black/20 rounded-full px-3 py-1">
-                   <Text className="text-yellow-400 font-bold">💰 {profile.coins}</Text>
+                   <Text className="text-yellow-400 font-bold">🪙 {profile.coins}</Text>
                 </View>
                 <TouchableOpacity onPress={claimReward} disabled={loading} className="bg-green-500 px-3 py-1.5 rounded-full active:scale-95">
                    <Text className="text-white text-[10px] font-black tracking-widest uppercase">🎁 Claim</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={signOut} className="mt-4 bg-red-500/80 px-4 py-1.5 rounded-full active:scale-95">
-                <Text className="text-white font-bold text-xs uppercase">Sign Out</Text>
-              </TouchableOpacity>
+              
+              <View className="flex-row items-center gap-2 mt-4">
+                <Leaderboard />
+                <TouchableOpacity onPress={signOut} className="mt-4 bg-red-500/80 px-4 py-1.5 rounded-full active:scale-95">
+                  <Text className="text-white font-bold text-xs uppercase">Sign Out</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         </View>
