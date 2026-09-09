@@ -37,7 +37,7 @@ export interface Room {
   innings: 1 | 2;
   target: number | null;
   winner: string | null;
-  stage: 'round1' | 'final' | null;
+  stage: 'round1' | 'final' | 'team_toss' | null;
   updated_at: string;
 
   // New Cricket Rules fields
