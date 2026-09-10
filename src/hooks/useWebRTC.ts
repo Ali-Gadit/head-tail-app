@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { Platform, PermissionsAndroid, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from 'react-native-webrtc';
+import { Audio } from 'expo-av';
 
 export function useWebRTC(roomId: string, playerId: string) {
   const [micEnabled, setMicEnabled] = useState(false);
@@ -10,6 +12,21 @@ export function useWebRTC(roomId: string, playerId: string) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    const configureAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {
+        console.log('Error configuring audio:', e);
+      }
+    };
+    configureAudio();
+  }, []);
 
   useEffect(() => {
     let pc = new RTCPeerConnection({
@@ -107,6 +124,24 @@ export function useWebRTC(roomId: string, playerId: string) {
   const toggleMic = async () => {
     try {
       if (!micEnabled) {
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: 'Microphone Permission',
+              message: 'This app needs access to your microphone so you can talk to your friends.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.log('Microphone permission denied');
+            Alert.alert('Permission Denied', 'Please enable microphone permissions in settings to use voice chat.');
+            return;
+          }
+        }
+        
         const stream = await mediaDevices.getUserMedia({ audio: true, video: false });
         localStreamRef.current = stream;
         if (pcRef.current) {
