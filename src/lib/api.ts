@@ -5,14 +5,36 @@ import { processAction } from './gameLogic';
 const BOT_UUID = '00000000-0000-0000-0000-000000000000';
 
 async function handlePayout(updates: any, finalRoom: any) {
-  if (updates.status === 'game_over' && finalRoom.bet_amount > 0) {
-    const pot = finalRoom.bet_amount * finalRoom.capacity;
-    if (finalRoom.winner === 'TIE') {
-      for (const pid of [finalRoom.player1_id, finalRoom.player2_id, finalRoom.player3_id].filter(Boolean)) {
-        await supabase.rpc('update_profile_coins', { user_id: pid, amount: finalRoom.bet_amount });
+  if (updates.status === 'game_over') {
+    if (finalRoom.bet_amount > 0) {
+      const pot = finalRoom.bet_amount * finalRoom.capacity;
+      if (finalRoom.winner === 'TIE') {
+        for (const pid of [finalRoom.player1_id, finalRoom.player2_id, finalRoom.player3_id].filter(Boolean)) {
+          await supabase.rpc('update_profile_coins', { user_id: pid, amount: finalRoom.bet_amount });
+        }
+      } else if (finalRoom.winner) {
+        await supabase.rpc('update_profile_coins', { user_id: finalRoom.winner, amount: pot });
       }
-    } else if (finalRoom.winner) {
-      await supabase.rpc('update_profile_coins', { user_id: finalRoom.winner, amount: pot });
+    }
+    
+    // Ranked Logic
+    if (finalRoom.is_ranked) {
+      const p1 = finalRoom.player1_id;
+      const p2 = finalRoom.player2_id;
+      if (finalRoom.winner === 'TIE') {
+        // Tie: +5 RP each
+        if (p1 && p1 !== BOT_UUID) await supabase.rpc('update_profile_rp', { user_id: p1, amount: 5 });
+        if (p2 && p2 !== BOT_UUID) await supabase.rpc('update_profile_rp', { user_id: p2, amount: 5 });
+      } else if (finalRoom.winner) {
+        const loser = finalRoom.winner === p1 ? p2 : p1;
+        // Winner +30 RP, Loser -15 RP
+        if (finalRoom.winner !== BOT_UUID) {
+          await supabase.rpc('update_profile_rp', { user_id: finalRoom.winner, amount: 30 });
+        }
+        if (loser && loser !== BOT_UUID) {
+          await supabase.rpc('update_profile_rp', { user_id: loser, amount: -15 });
+        }
+      }
     }
   }
 }
@@ -92,7 +114,90 @@ export const api = {
     return { room: newRoom, isNew: true };
   },
 
-  addBotToRoom: async (roomId: string, p1Id: string) => {
+  
+  findRankedMatch: async (userId: string, name: string, rankTier: string, capacity: number = 2) => {
+    let { data: rooms } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('status', 'waiting')
+      .eq('capacity', capacity)
+      .eq('is_ranked', true)
+      .eq('rank_tier', rankTier)
+      .limit(1);
+
+    if (rooms && rooms.length > 0) {
+      const room = rooms[0];
+      if (capacity === 2) {
+        if (room.player1_id !== userId) {
+          const { data: updatedRoom } = await supabase
+            .from('rooms')
+            .update({ player2_id: userId, p2_name: name, status: 'toss_call' })
+            .eq('id', room.id).select().single();
+          return { room: updatedRoom, isNew: false };
+        } else return { room, isNew: true };
+      } else {
+        // Duo (4) or Squad (8)
+        let team1 = room.team1 || [];
+        let team2 = room.team2 || [];
+        let team1_names = room.team1_names || [];
+        let team2_names = room.team2_names || [];
+        
+        const teamSize = capacity / 2;
+        if (team1.length < teamSize) {
+          team1 = [...team1, userId];
+          team1_names = [...team1_names, name];
+        } else if (team2.length < teamSize) {
+          team2 = [...team2, userId];
+          team2_names = [...team2_names, name];
+        }
+
+        const isFull = (team1.length + team2.length) === capacity;
+        const updates: any = { team1, team2, team1_names, team2_names };
+        if (isFull) updates.status = 'toss_call';
+
+        const { data: updatedRoom } = await supabase.from('rooms').update(updates).eq('id', room.id).select().single();
+        return { room: updatedRoom, isNew: false }; // Don't trigger bot insertion for joiners
+      }
+    } else {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      let overs_limit = 2;
+      if (rankTier === 'Gold' || rankTier === 'Platinum') overs_limit = 3;
+      if (rankTier === 'Diamond' || rankTier === 'Master' || rankTier === 'Grandmaster') overs_limit = 5;
+      
+      const isSquad = capacity > 2;
+
+      const insertData: any = {
+        code,
+        player1_id: isSquad ? null : userId,
+        p1_name: isSquad ? null : name,
+        capacity,
+        bet_amount: 0,
+        status: 'waiting',
+        p1_score: 0,
+        p2_score: 0,
+        innings: 1,
+        is_ranked: true,
+        rank_tier: rankTier,
+        overs_limit,
+        wickets_limit: isSquad ? (capacity / 2) : 1
+      };
+      
+      if (isSquad) {
+        insertData.team1 = [userId];
+        insertData.team1_names = [name];
+        insertData.team1_captain = userId;
+      }
+
+      const { data: newRoom, error } = await supabase
+        .from('rooms')
+        .insert(insertData)
+        .select()
+        .single();
+      if (error) throw error;
+      return { room: newRoom, isNew: true };
+    }
+  },
+addBotToRoom: async (roomId: string, p1Id: string) => {
     const { data, error } = await supabase
       .from('rooms')
       .update({

@@ -6,6 +6,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +23,29 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ 
+        const { data, error } = await supabase.auth.signUp({ 
           email, 
           password,
           options: { data: { username } }
         });
         if (error) throw error;
+        
+        if (referralCode.trim() && data?.user?.id) {
+          try {
+            await new Promise(r => setTimeout(r, 2000));
+            const refId = parseInt(referralCode.trim(), 10);
+            if (!isNaN(refId)) {
+              const { data: referrers } = await supabase.from('profiles').select('id').eq('friend_id', refId).limit(1);
+              if (referrers && referrers.length > 0) {
+                await supabase.rpc('update_profile_coins', { user_id: referrers[0].id, amount: 10000 });
+                await supabase.rpc('update_profile_coins', { user_id: data.user.id, amount: 5000 });
+              }
+            }
+          } catch(e) {
+            console.log("Referral error:", e);
+          }
+        }
+
         Alert.alert('Success', 'Account created! You can now log in.');
         setIsLogin(true);
       }
@@ -44,6 +62,21 @@ export default function Auth() {
         {isLogin ? 'WELCOME BACK' : 'JOIN THE GAME'}
       </Text>
       
+      
+      {!isLogin && (
+        <View className="mb-4">
+          <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Referral Code (Optional)</Text>
+          <TextInput
+            value={referralCode}
+            onChangeText={setReferralCode}
+            className="w-full bg-white/20 border border-white/30 rounded-2xl p-4 text-white font-bold"
+            placeholder="00000001"
+            placeholderTextColor="rgba(255,255,255,0.4)"
+            keyboardType="number-pad"
+          />
+        </View>
+      )}
+
       {!isLogin && (
         <View className="mb-4">
           <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Username</Text>

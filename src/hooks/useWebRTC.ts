@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Platform, PermissionsAndroid, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from 'react-native-webrtc';
-import { Audio } from 'expo-av';
+import InCallManager from 'react-native-incall-manager';
 
 export function useWebRTC(roomId: string, playerId: string) {
   const [micEnabled, setMicEnabled] = useState(false);
@@ -14,18 +14,13 @@ export function useWebRTC(roomId: string, playerId: string) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    const configureAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (e) {
-        console.log('Error configuring audio:', e);
-      }
+    InCallManager.start({ media: 'audio' });
+    InCallManager.setForceSpeakerphoneOn(true);
+    InCallManager.setSpeakerphoneOn(true);
+
+    return () => {
+      InCallManager.stop();
     };
-    configureAudio();
   }, []);
 
   useEffect(() => {

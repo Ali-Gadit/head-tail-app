@@ -8,6 +8,8 @@ type Profile = {
   friend_id: string;
   is_online: boolean;
   coins: number;
+  rp?: number;
+  rank_tier?: string;
   last_daily_reward: string | null;
 };
 

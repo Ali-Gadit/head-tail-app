@@ -3,12 +3,14 @@ import OfflineApp from './OfflineApp';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
 import Auth from './src/components/Auth';
 import GameRoom from './src/components/GameRoom';
 import Friends from './src/components/Friends';
 import WorldChat from './src/components/WorldChat';
 import NotificationManager from './src/components/NotificationManager';
+import BackgroundMusic from './src/components/BackgroundMusic';
 import Leaderboard from './src/components/Leaderboard';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
@@ -37,6 +39,35 @@ function Dashboard() {
   }, [roomId]);
 
   const [findingMatch, setFindingMatch] = useState(false);
+
+  const [findingRankedMatch, setFindingRankedMatch] = useState(false);
+
+  const startRankedMatch = async (teamCapacity: number = 2) => {
+    if (!user || !profile) return;
+    setFindingRankedMatch(true);
+    setLoading(true);
+    try {
+      const result = await api.findRankedMatch(user.id, profile.username || 'Player', profile.rank_tier || 'Bronze', teamCapacity);
+      setRoom(result.room);
+      setRoomId(result.room.id);
+      
+      if (result.isNew) {
+        setTimeout(async () => {
+          try {
+            await api.addBotToRoom(result.room.id, user.id);
+          } catch(e) {}
+          setFindingRankedMatch(false);
+        }, 10000);
+      } else {
+        setFindingRankedMatch(false);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+      setFindingRankedMatch(false);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const findMatch = async () => {
     if (!user || !profile) return;
@@ -144,7 +175,7 @@ function Dashboard() {
               <Text className="text-white opacity-80 text-sm">Welcome, <Text className="text-yellow-300 font-bold">{profile.username}</Text></Text>
               
               <View className="mt-1 bg-black/30 rounded-full px-3 py-1 border border-white/10">
-                <Text className="text-white/60 text-xs font-mono">ID: <Text className="text-white font-bold">{profile.friend_id}</Text></Text>
+                <Text className="text-white/60 text-xs font-mono">ID: <Text className="text-white font-bold">{String(profile?.friend_id || 0).padStart(8, '0')}</Text></Text>
               </View>
 
               <View className="flex-row items-center gap-2 mt-3">
@@ -166,7 +197,19 @@ function Dashboard() {
           )}
         </View>
 
-        <View className="bg-white/10 p-6 sm:p-8 rounded-[2rem] border border-white/20 shadow-2xl space-y-6">
+        
+          <View className="bg-gradient-to-br from-purple-600 to-indigo-600 p-6 rounded-[2rem] border border-white/20 shadow-2xl mb-6">
+            <Text className="text-white font-black text-2xl mb-2">?? INVITE & EARN</Text>
+            <Text className="text-white/80 text-sm mb-4 leading-tight">Share your code to get <Text className="font-bold text-yellow-400">10,000 Coins</Text> per friend! They also get 5,000 bonus Coins.</Text>
+            <View className="bg-black/30 p-4 rounded-2xl flex-row justify-between items-center border border-white/10">
+              <Text className="text-white font-mono text-2xl tracking-[0.2em] font-black">{String(profile?.friend_id || 0).padStart(8, '0')}</Text>
+              <TouchableOpacity onPress={() => { Clipboard.setStringAsync(String(profile?.friend_id || 0).padStart(8, '0')); Alert.alert('Copied!', 'Referral code copied to clipboard!'); }} className="bg-white/20 px-4 py-2 rounded-xl">
+                <Text className="text-white font-bold text-xs uppercase tracking-widest">Copy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View className="bg-white/10 p-6 sm:p-8 rounded-[2rem] border border-white/20 shadow-2xl space-y-6">
           <View>
             <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2">Game Mode</Text>
             <View className="flex-row gap-3">
@@ -211,9 +254,20 @@ function Dashboard() {
           </TouchableOpacity>
 
           {gameMode === 'PVP' && capacity === 2 && (
-            <TouchableOpacity onPress={findMatch} disabled={loading || findingMatch} className="w-full bg-green-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-green-700">
-              <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingMatch ? 'Searching...' : 'Find Random Match'}</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity onPress={() => startRankedMatch(2)} disabled={loading || findingRankedMatch || findingMatch} className="w-full bg-blue-600 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-blue-800">
+                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingRankedMatch ? 'Searching...' : 'Play Ranked (Solo)'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => startRankedMatch(4)} disabled={loading || findingRankedMatch || findingMatch} className="w-full bg-blue-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-blue-700">
+                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingRankedMatch ? 'Searching...' : 'Play Ranked (Duo)'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => startRankedMatch(8)} disabled={loading || findingRankedMatch || findingMatch} className="w-full bg-blue-400 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-blue-600">
+                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingRankedMatch ? 'Searching...' : 'Play Ranked (Squad)'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={findMatch} disabled={loading || findingMatch || findingRankedMatch} className="w-full bg-green-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-green-700">
+                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingMatch ? 'Searching...' : 'Find Casual Match'}</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {gameMode === 'PVP' && (
@@ -300,6 +354,8 @@ export default function App() {
     <AuthProvider>
       <StatusBar style="light" />
       <Main />
+      <BackgroundMusic />
     </AuthProvider>
   );
 }
+

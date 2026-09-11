@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { createAudioPlayer } from 'expo-audio';
+import { useChat } from '../hooks/useChat';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { Room, UserAction } from '../lib/types';
 import Scoreboard from './Scoreboard';
@@ -15,6 +17,40 @@ interface GameRoomProps {
   onExit: () => void;
   onAction?: (action: UserAction | { type: 'EXIT_GAME' }) => Promise<void>;
 }
+
+
+const AUDIO_ASSETS: Record<string, any> = {
+  'hello': require('../../assets/voices/hello.mp3'),
+  'good_luck': require('../../assets/voices/good_luck.mp3'),
+  'well_played': require('../../assets/voices/well_played.mp3'),
+  'oops': require('../../assets/voices/oops.mp3'),
+  'hurry_up': require('../../assets/voices/hurry_up.mp3'),
+  'wow': require('../../assets/voices/wow.mp3'),
+  'thanks': require('../../assets/voices/thanks.mp3'),
+  'good_game': require('../../assets/voices/good_game.mp3'),
+};
+
+const QUICK_CHATS = [
+  { id: 'hello', text: 'Hello!' },
+  { id: 'good_luck', text: 'Good Luck!' },
+  { id: 'well_played', text: 'Well Played!' },
+  { id: 'oops', text: 'Oops!' },
+  { id: 'hurry_up', text: 'Hurry Up!' },
+  { id: 'wow', text: 'Wow!' },
+  { id: 'thanks', text: 'Thanks!' },
+  { id: 'good_game', text: 'Good Game!' },
+];
+
+const EMOTES = [
+  { id: 'bomb', icon: '💣' },
+  { id: 'wine', icon: '🍷' },
+  { id: 'heart', icon: '❤️' },
+  { id: 'angry', icon: '😡' },
+  { id: 'laugh', icon: '😂' },
+  { id: 'thumbs_down', icon: '👎' },
+  { id: 'tomato', icon: '🍅' },
+  { id: 'rose', icon: '🌹' },
+];
 
 export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomProps) {
   const [loading, setLoading] = useState(false);
@@ -32,6 +68,73 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
   const { micEnabled, speakerEnabled, toggleMic, toggleSpeaker } = useWebRTC(room.id, playerId);
+
+  const myName = playerId === room.player1_id ? room.p1_name : (playerId === room.player2_id ? room.p2_name : room.p3_name) || 'Player';
+  const { messages, sendMessage, latestSpecialMessage } = useChat(room.id, playerId, myName || 'Player');
+  
+  const [chatOpen, setChatOpen] = React.useState(false);
+  const [chatText, setChatText] = React.useState('');
+  const [showQuickChatMenu, setShowQuickChatMenu] = React.useState(false);
+  const [showEmotesMenu, setShowEmotesMenu] = React.useState(false);
+  
+  const [activeEmote, setActiveEmote] = React.useState<string | null>(null);
+  const emoteAnim = React.useRef(new Animated.Value(0)).current;
+  const scrollViewRef = React.useRef<ScrollView>(null);
+
+  const [timeLeft, setTimeLeft] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (room.status === 'playing' && room.is_ranked && myThrowInPlay === null) {
+      let timerVal = 7;
+      if (room.rank_tier === 'Gold' || room.rank_tier === 'Platinum') timerVal = 5;
+      if (room.rank_tier === 'Diamond' || room.rank_tier === 'Master' || room.rank_tier === 'Grandmaster') timerVal = 3;
+      
+      setTimeLeft(timerVal);
+      const interval = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev !== null && prev <= 1) {
+             clearInterval(interval);
+             setMyThrowInPlay(0);
+             if (onAction) onAction({ type: 'THROW', fingers: 0 } as any);
+             else api.takeAction(room.id, playerId, { type: 'THROW', fingers: 0 } as any);
+             return 0;
+          }
+          return prev ? prev - 1 : null;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft(null);
+    }
+  }, [room.status, room.is_ranked, room.rank_tier, myThrowInPlay]);
+
+  React.useEffect(() => {
+    if (latestSpecialMessage && latestSpecialMessage.timestamp > Date.now() - 5000) {
+      if (latestSpecialMessage.messageType === 'quick_chat' && latestSpecialMessage.metaId) {
+        const asset = AUDIO_ASSETS[latestSpecialMessage.metaId];
+        if (asset) {
+          try {
+            const player = createAudioPlayer(asset);
+            player.play();
+          } catch(e) {}
+        }
+      } else if (latestSpecialMessage.messageType === 'emote' && latestSpecialMessage.metaId) {
+        setActiveEmote(latestSpecialMessage.metaId);
+        emoteAnim.setValue(0);
+        Animated.sequence([
+          Animated.timing(emoteAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.delay(1500),
+          Animated.timing(emoteAnim, { toValue: 0, duration: 500, useNativeDriver: true })
+        ]).start(() => setActiveEmote(null));
+      }
+    }
+  }, [latestSpecialMessage]);
+
+  const handleSendChat = () => {
+    if (!chatText.trim()) return;
+    sendMessage(chatText, 'text');
+    setChatText('');
+  };
   const renderContent = () => {
   
   useEffect(() => {
@@ -450,6 +553,12 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   // PLAYING
   if (room.status === 'playing') {
     const isBat = playerId === room.current_batsman;
+    
+    let playingMaxFingers = 6;
+    if (room.is_ranked) {
+      if (room.rank_tier === 'Gold' || room.rank_tier === 'Platinum') playingMaxFingers = 4;
+      if (room.rank_tier === 'Diamond' || room.rank_tier === 'Master' || room.rank_tier === 'Grandmaster') playingMaxFingers = 2;
+    }
     const isSpectator = playerId === room.waiting_player_id;
     return (
       <View className="space-y-6 flex-1">
@@ -464,12 +573,21 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
               </Text>
             </View>
             
+            {room.is_ranked && timeLeft !== null && !myThrowInPlay && (
+              <View className="mb-4 items-center">
+                <Text className="text-red-400 font-black text-2xl animate-pulse">{timeLeft}s</Text>
+                <View className="h-2 w-full bg-white/10 rounded-full mt-2 overflow-hidden">
+                  <Animated.View style={{ width: `${(timeLeft / 7) * 100}%` }} className="h-full bg-red-500" />
+                </View>
+              </View>
+            )}
+            
             {myThrowInPlay ? (
               <View className="h-24 justify-center items-center">
                  <Text className="text-white font-bold opacity-50 animate-pulse text-lg">Waiting for opponent...</Text>
               </View>
             ) : (
-              <HandSelector disabled={loading} onSelect={(num) => takeAction({ type: 'THROW', fingers: num })} />
+              <HandSelector maxFingers={playingMaxFingers} disabled={loading} onSelect={(num) => takeAction({ type: 'THROW', fingers: num })} />
             )}
           </View>
         )}
@@ -518,10 +636,130 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
         <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? 'bg-blue-500 border-blue-400' : 'bg-gray-500/80 border-gray-400/50'}`}>
           <Text className="text-lg">{speakerEnabled ? '🔊' : '🔈'}</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setChatOpen(true)} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-indigo-500 border-indigo-400 relative">
+          <Text className="text-lg">💬</Text>
+          {messages && messages.length > 0 && !chatOpen && (
+            <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center">
+              <Text className="text-white text-[8px] font-bold">{messages.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
       {renderContent()}
+
+      {activeEmote && (
+        <Animated.View 
+          pointerEvents="none"
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            justifyContent: 'center', alignItems: 'center', zIndex: 9999,
+            opacity: emoteAnim,
+            transform: [{ scale: emoteAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 1.5, 1] }) }]
+          }}
+        >
+          <Text style={{ fontSize: 120 }}>
+            {EMOTES.find(e => e.id === activeEmote)?.icon || activeEmote}
+          </Text>
+        </Animated.View>
+      )}
+
+      <Modal visible={chatOpen} animationType="slide" transparent={true}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 justify-end bg-black/50">
+          <View className="bg-indigo-950 h-3/4 rounded-t-3xl border-t border-white/20 flex flex-col overflow-hidden">
+            <View className="bg-white/10 p-4 flex-row justify-between items-center border-b border-white/10">
+              <Text className="text-white font-bold text-base uppercase tracking-wider">In-Game Chat</Text>
+              <TouchableOpacity onPress={() => setChatOpen(false)} className="p-1">
+                <Text className="text-white/50 font-bold text-lg">✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView ref={scrollViewRef} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })} className="flex-1 p-4">
+              {!messages || messages.length === 0 ? (
+                <Text className="text-white/40 text-center italic mt-10 text-xs">No messages yet.{"\\n"}Messages disappear after the game.</Text>
+              ) : (
+                messages.map(msg => {
+                  const isMe = msg.senderId === playerId;
+                  return (
+                    <View key={msg.id} className={`mb-3 max-w-[85%] ${isMe ? 'self-end' : 'self-start'}`}>
+                      <Text className={`text-[10px] text-white/50 font-bold mb-1 ${isMe ? 'text-right' : 'text-left'}`}>{msg.senderName}</Text>
+                      {msg.messageType === 'emote' ? (
+                        <Text style={{ fontSize: 50 }}>{EMOTES.find(e => e.id === msg.metaId)?.icon || msg.metaId}</Text>
+                      ) : msg.messageType === 'quick_chat' ? (
+                        <View className={`px-4 py-3 rounded-2xl ${isMe ? 'bg-indigo-400 rounded-tr-none' : 'bg-white/30 rounded-tl-none'}`}>
+                          <Text className="text-white text-sm italic">🔊 {msg.text}</Text>
+                        </View>
+                      ) : (
+                        <View className={`px-4 py-3 rounded-2xl ${isMe ? 'bg-indigo-500 rounded-tr-none' : 'bg-white/20 rounded-tl-none'}`}>
+                          <Text className="text-white text-sm">{msg.text}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+            
+            {showQuickChatMenu && (
+              <View className="p-3 bg-indigo-900 border-t border-white/10">
+                <View className="flex-row justify-between items-center mb-3">
+                  <View className="w-6" />
+                  <Text className="text-white/50 text-xs text-center uppercase tracking-widest font-bold">Quick Chat</Text>
+                  <TouchableOpacity onPress={() => setShowQuickChatMenu(false)} className="w-6 items-center">
+                    <Text className="text-white/50 text-base">✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <View className="flex-row flex-wrap justify-center gap-2">
+                  {QUICK_CHATS.map(qc => (
+                    <TouchableOpacity key={qc.id} onPress={() => { sendMessage(qc.text, 'quick_chat', qc.id); setShowQuickChatMenu(false); }} className="bg-white/10 px-4 py-2 rounded-full border border-white/10">
+                      <Text className="text-white text-sm font-bold">{qc.text}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {showEmotesMenu && (
+              <View className="p-3 bg-indigo-900 border-t border-white/10">
+                <View className="flex-row justify-between items-center mb-3">
+                  <View className="w-6" />
+                  <Text className="text-white/50 text-xs text-center uppercase tracking-widest font-bold">Emotes</Text>
+                  <TouchableOpacity onPress={() => setShowEmotesMenu(false)} className="w-6 items-center">
+                    <Text className="text-white/50 text-base">✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <View className="flex-row flex-wrap justify-center gap-3 py-2">
+                  {EMOTES.map(em => (
+                    <TouchableOpacity key={em.id} onPress={() => { sendMessage(em.icon, 'emote', em.id); setShowEmotesMenu(false); }} className="w-14 h-14 bg-white/5 rounded-2xl items-center justify-center border border-white/10">
+                      <Text className="text-4xl">{em.icon}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View className="p-3 bg-black/40 flex-row gap-2 items-center">
+              <TouchableOpacity onPress={() => { setShowQuickChatMenu(!showQuickChatMenu); setShowEmotesMenu(false); }} className={`w-12 h-12 rounded-full ${showQuickChatMenu ? 'bg-indigo-500' : 'bg-white/10'} items-center justify-center`}>
+                <Text className="text-white text-xl">💬</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setShowEmotesMenu(!showEmotesMenu); setShowQuickChatMenu(false); }} className={`w-12 h-12 rounded-full ${showEmotesMenu ? 'bg-indigo-500' : 'bg-white/10'} items-center justify-center`}>
+                <Text className="text-white text-xl">🎭</Text>
+              </TouchableOpacity>
+              <TextInput
+                value={chatText}
+                onChangeText={setChatText}
+                placeholder="Send a message..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                className="flex-1 bg-white/10 text-white rounded-full px-5 py-3 text-sm border border-white/10"
+                maxLength={100}
+                onSubmitEditing={handleSendChat}
+              />
+              <TouchableOpacity onPress={handleSendChat} disabled={!chatText.trim()} className={`w-12 h-12 rounded-full items-center justify-center ${chatText.trim() ? 'bg-indigo-500' : 'bg-white/10'}`}>
+                <Text className="text-white text-xl">➤</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
-
-
