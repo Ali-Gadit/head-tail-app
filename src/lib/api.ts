@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { Room, UserAction } from './types';
 import { processAction } from './gameLogic';
+import { processSquadAction } from './gameLogicSquad';
 
 const BOT_UUID = '00000000-0000-0000-0000-000000000000';
 
@@ -115,89 +116,84 @@ export const api = {
   },
 
   
-  findRankedMatch: async (userId: string, name: string, rankTier: string, capacity: number = 2) => {
-    let { data: rooms } = await supabase
+  
+  createRankedRoom: async (userId: string, name: string, rankTier: string, capacity: number = 2) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const isSquad = capacity > 2;
+    const insertData: any = {
+      code,
+      player1_id: userId,
+      p1_name: name,
+      capacity,
+      bet_amount: 0,
+      status: isSquad ? 'party_lobby' : 'searching',
+      p1_score: 0, p2_score: 0, innings: 1,
+      is_ranked: true, rank_tier: rankTier,
+      overs_limit: (rankTier === 'Gold' || rankTier === 'Platinum') ? 3 : (rankTier === 'Diamond' || rankTier === 'Master' || rankTier === 'Grandmaster' ? 5 : 2),
+      wickets_limit: isSquad ? (capacity / 2) : 1
+    };
+    
+    if (isSquad) {
+      insertData.team1 = [userId];
+      insertData.team1_names = [name];
+      insertData.team1_captain = userId;
+    }
+    const { data, error } = await supabase.from('rooms').insert(insertData).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  findRankedOpponent: async (room: any) => {
+    const { data: rooms } = await supabase
       .from('rooms')
       .select('*')
-      .eq('status', 'waiting')
-      .eq('capacity', capacity)
+      .eq('status', 'searching')
+      .eq('capacity', room.capacity)
       .eq('is_ranked', true)
-      .eq('rank_tier', rankTier)
+      .eq('rank_tier', room.rank_tier)
+      .neq('id', room.id)
       .limit(1);
 
     if (rooms && rooms.length > 0) {
-      const room = rooms[0];
-      if (capacity === 2) {
-        if (room.player1_id !== userId) {
-          const { data: updatedRoom } = await supabase
-            .from('rooms')
-            .update({ player2_id: userId, p2_name: name, status: 'toss_call' })
-            .eq('id', room.id).select().single();
-          return { room: updatedRoom, isNew: false };
-        } else return { room, isNew: true };
+      const oppRoom = rooms[0];
+      if (room.capacity === 2) {
+        await supabase.from('rooms').update({
+          player2_id: room.player1_id, p2_name: room.p1_name,
+          status: 'toss_call', current_batsman: oppRoom.player1_id, current_bowler: room.player1_id
+        }).eq('id', oppRoom.id);
       } else {
-        // Duo (4) or Squad (8)
-        let team1 = room.team1 || [];
-        let team2 = room.team2 || [];
-        let team1_names = room.team1_names || [];
-        let team2_names = room.team2_names || [];
-        
-        const teamSize = capacity / 2;
-        if (team1.length < teamSize) {
-          team1 = [...team1, userId];
-          team1_names = [...team1_names, name];
-        } else if (team2.length < teamSize) {
-          team2 = [...team2, userId];
-          team2_names = [...team2_names, name];
-        }
-
-        const isFull = (team1.length + team2.length) === capacity;
-        const updates: any = { team1, team2, team1_names, team2_names };
-        if (isFull) updates.status = 'toss_call';
-
-        const { data: updatedRoom } = await supabase.from('rooms').update(updates).eq('id', room.id).select().single();
-        return { room: updatedRoom, isNew: false }; // Don't trigger bot insertion for joiners
+        await supabase.from('rooms').update({
+          team2: room.team1, team2_names: room.team1_names, team2_captain: room.team1_captain,
+          status: 'toss_call', current_batsman: oppRoom.team1_captain, current_bowler: room.team1_captain
+        }).eq('id', oppRoom.id);
       }
+      await supabase.from('rooms').update({ status: 'redirect', winner: oppRoom.id }).eq('id', room.id);
+      return true;
     } else {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      let overs_limit = 2;
-      if (rankTier === 'Gold' || rankTier === 'Platinum') overs_limit = 3;
-      if (rankTier === 'Diamond' || rankTier === 'Master' || rankTier === 'Grandmaster') overs_limit = 5;
-      
-      const isSquad = capacity > 2;
-
-      const insertData: any = {
-        code,
-        player1_id: isSquad ? null : userId,
-        p1_name: isSquad ? null : name,
-        capacity,
-        bet_amount: 0,
-        status: 'waiting',
-        p1_score: 0,
-        p2_score: 0,
-        innings: 1,
-        is_ranked: true,
-        rank_tier: rankTier,
-        overs_limit,
-        wickets_limit: isSquad ? (capacity / 2) : 1
-      };
-      
-      if (isSquad) {
-        insertData.team1 = [userId];
-        insertData.team1_names = [name];
-        insertData.team1_captain = userId;
-      }
-
-      const { data: newRoom, error } = await supabase
-        .from('rooms')
-        .insert(insertData)
-        .select()
-        .single();
-      if (error) throw error;
-      return { room: newRoom, isNew: true };
+      await supabase.from('rooms').update({ status: 'searching' }).eq('id', room.id);
+      return false;
     }
   },
-addBotToRoom: async (roomId: string, p1Id: string) => {
+
+  fillRankedWithBots: async (room: any) => {
+    const BOT_UUID = '00000000-0000-0000-0000-000000000000';
+    if (room.capacity === 2) {
+      await supabase.from('rooms').update({
+        player2_id: BOT_UUID, p2_name: 'Computer',
+        status: 'toss_call', current_batsman: room.player1_id, current_bowler: BOT_UUID
+      }).eq('id', room.id);
+    } else {
+      const teamSize = room.capacity / 2;
+      const team2 = Array(teamSize).fill(BOT_UUID);
+      const team2_names = Array(teamSize).fill('Computer');
+      await supabase.from('rooms').update({
+        team2, team2_names, team2_captain: BOT_UUID,
+        status: 'toss_call', current_batsman: room.team1_captain, current_bowler: BOT_UUID
+      }).eq('id', room.id);
+    }
+  },
+
+  addBotToRoom: async (roomId: string, p1Id: string) => {
     const { data, error } = await supabase
       .from('rooms')
       .update({
@@ -222,7 +218,7 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
       .single();
 
     if (fetchError || !room) throw new Error('Room not found');
-    if (room.status !== 'waiting') throw new Error('Room is already in progress');
+    if (room.status !== 'waiting' && room.status !== 'party_lobby') throw new Error('Room is already in progress');
 
     const playerId = userId || 'anonymous';
 
@@ -239,7 +235,16 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
     }
 
     const updates: any = {};
-    if (!room.player2_id) {
+    if (room.status === 'party_lobby') {
+      let team1 = room.team1 || [];
+      let team1_names = room.team1_names || [];
+      if (team1.length < room.capacity / 2) {
+        updates.team1 = [...team1, playerId];
+        updates.team1_names = [...team1_names, name];
+      } else {
+        throw new Error('Party is full');
+      }
+    } else if (!room.player2_id) {
       updates.player2_id = playerId;
       updates.p2_name = name;
     } else if (!room.player3_id && room.capacity === 3) {
@@ -299,7 +304,12 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
       const { data: updatedRoom, error: throwError } = await supabase.from('rooms').update(throwUpdates).eq('id', roomId).select().single();
       if (throwError) throw throwError;
       
-      const transitionUpdates = processAction(updatedRoom, playerId, action);
+      let transitionUpdates: any = {};
+      if (updatedRoom.capacity >= 4) {
+        transitionUpdates = processSquadAction(updatedRoom, playerId, action);
+      } else {
+        transitionUpdates = processAction(updatedRoom, playerId, action);
+      }
       delete transitionUpdates.p1_throw; delete transitionUpdates.p2_throw; delete transitionUpdates.p3_throw;
       
       if (Object.keys(transitionUpdates).length > 0) {
@@ -315,7 +325,9 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
       const { data: updatedRoom, error: tossErr } = await supabase.from('rooms').update({ toss_choices: newChoices }).eq('id', roomId).select().single();
       if (tossErr) throw tossErr;
       
-      const transitionUpdates = processAction(updatedRoom, playerId, action);
+      let transitionUpdates: any = {};
+      if (updatedRoom.capacity >= 4) transitionUpdates = processSquadAction(updatedRoom, playerId, action);
+      else transitionUpdates = processAction(updatedRoom, playerId, action);
       delete transitionUpdates.toss_choices;
       if (Object.keys(transitionUpdates).length > 0) {
         const { data: finalRoom, error: tErr } = await supabase.from('rooms').update(transitionUpdates).eq('id', roomId).select().single();
@@ -325,7 +337,8 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
       }
       return updatedRoom;
     } else {
-      updates = processAction(room, playerId, action);
+      if (room.capacity >= 4) updates = processSquadAction(room, playerId, action);
+      else updates = processAction(room, playerId, action);
     }
 
     if (Object.keys(updates).length === 0) {

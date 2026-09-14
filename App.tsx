@@ -47,20 +47,10 @@ function Dashboard() {
     setFindingRankedMatch(true);
     setLoading(true);
     try {
-      const result = await api.findRankedMatch(user.id, profile.username || 'Player', profile.rank_tier || 'Bronze', teamCapacity);
-      setRoom(result.room);
-      setRoomId(result.room.id);
-      
-      if (result.isNew) {
-        setTimeout(async () => {
-          try {
-            await api.addBotToRoom(result.room.id, user.id);
-          } catch(e) {}
-          setFindingRankedMatch(false);
-        }, 10000);
-      } else {
-        setFindingRankedMatch(false);
-      }
+      const room = await api.createRankedRoom(user.id, profile.username || 'Player', profile.rank_tier || 'Bronze', teamCapacity);
+      setRoom(room);
+      setRoomId(room.id);
+      setFindingRankedMatch(false);
     } catch (err: any) {
       Alert.alert('Error', err.message);
       setFindingRankedMatch(false);

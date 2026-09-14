@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { createAudioPlayer } from 'expo-audio';
 import { useChat } from '../hooks/useChat';
 import { useWebRTC } from '../hooks/useWebRTC';
@@ -66,16 +66,29 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const [captain, setCaptain] = useState<string | null>(null);
   const [customCaptainIndex, setCustomCaptainIndex] = useState<number | null>(null);
 
-  const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
+  const isSquad = room.capacity >= 4;
+  const isTeam1 = isSquad ? room.team1?.includes(playerId) : false;
+  const myDbThrow = isSquad ? (isTeam1 ? room.team1_throw : room.team2_throw) : (playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw));
   const { micEnabled, speakerEnabled, toggleMic, toggleSpeaker } = useWebRTC(room.id, playerId);
 
-  const myName = playerId === room.player1_id ? room.p1_name : (playerId === room.player2_id ? room.p2_name : room.p3_name) || 'Player';
-  const { messages, sendMessage, latestSpecialMessage } = useChat(room.id, playerId, myName || 'Player');
+  let myName = 'Player';
+  if (isSquad) {
+    const isTeam1 = room.team1?.includes(playerId);
+    const idx = isTeam1 ? room.team1?.indexOf(playerId) : room.team2?.indexOf(playerId);
+    const safeIdx = idx !== undefined && idx !== -1 ? idx : 0;
+    const resName = isTeam1 ? room.team1_names?.[safeIdx] : room.team2_names?.[safeIdx];
+    myName = resName || 'Player';
+  } else {
+    const temp = playerId === room.player1_id ? room.p1_name : (playerId === room.player2_id ? room.p2_name : room.p3_name);
+    myName = temp || 'Player';
+  }
+  const { messages, sendMessage, latestSpecialMessage } = useChat(room.id, playerId, (myName || 'Player'));
   
   const [chatOpen, setChatOpen] = React.useState(false);
   const [chatText, setChatText] = React.useState('');
   const [showQuickChatMenu, setShowQuickChatMenu] = React.useState(false);
   const [showEmotesMenu, setShowEmotesMenu] = React.useState(false);
+  const [searchTime, setSearchTime] = React.useState(0);
   
   const [activeEmote, setActiveEmote] = React.useState<string | null>(null);
   const emoteAnim = React.useRef(new Animated.Value(0)).current;
@@ -107,6 +120,40 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
       setTimeLeft(null);
     }
   }, [room.status, room.is_ranked, room.rank_tier, myThrowInPlay]);
+
+  React.useEffect(() => {
+    if (room.status !== 'searching') {
+      return;
+    }
+    setSearchTime(0);
+    const isLeader = (room.capacity === 2 && playerId === room.player1_id) || (room.capacity > 2 && playerId === room.team1_captain);
+    
+    let active = true;
+    let elapsed = 0;
+    const interval = setInterval(async () => {
+      if (!active) return;
+      elapsed++;
+      setSearchTime(elapsed);
+
+      if (isLeader && elapsed % 4 === 0) {
+        try {
+          const found = await api.findRankedOpponent(room);
+          if (found) {
+            active = false;
+            clearInterval(interval);
+          } else if (elapsed >= 60) {
+            active = false;
+            clearInterval(interval);
+            await api.fillRankedWithBots(room);
+          }
+        } catch(e) { console.log(e); }
+      }
+    }, 1000);
+
+    return () => { active = false; clearInterval(interval); };
+  }, [room.status, room.capacity, room.player1_id, room.team1_captain, room.id]);
+
+  // Replace previous logic to avoid duplicate polling
 
   React.useEffect(() => {
     if (latestSpecialMessage && latestSpecialMessage.timestamp > Date.now() - 5000) {
@@ -187,6 +234,58 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const isP3 = playerId === room.player3_id;
   const isHost = isP1;
 
+  // RANKED SQUAD LOBBY
+  if (room.status === 'party_lobby') {
+    const isCaptain = playerId === room.team1_captain;
+    const teamSize = room.capacity / 2;
+    return (
+      <View className="space-y-6">
+        <View className="bg-indigo-900/50 p-6 rounded-3xl border border-indigo-400/20 items-center">
+          <Text className="text-2xl font-black text-yellow-300 uppercase text-center mb-2">Ranked Party</Text>
+          <Text className="text-white/60 text-center font-bold mb-2 text-lg">ROOM CODE: <Text className="text-white">{room.code}</Text></Text>
+          <InviteFriends roomId={room.id} />
+          
+          <View className="w-full gap-3 mb-6">
+            {[...Array(teamSize)].map((_, i) => (
+              <View key={i} className="flex-row items-center bg-white/5 p-4 rounded-xl border border-white/10">
+                <Text className="text-white font-bold text-lg flex-1">
+                  {room.team1_names?.[i] || 'Waiting...'}
+                </Text>
+                {i === 0 && <Text className="text-yellow-400 font-bold text-xs uppercase bg-yellow-400/20 px-2 py-1 rounded">Captain</Text>}
+              </View>
+            ))}
+          </View>
+
+          {isCaptain ? (
+            <TouchableOpacity onPress={() => takeAction({ type: 'START_MATCHMAKING' })} disabled={loading} className="w-full bg-blue-500 py-4 rounded-2xl shadow-xl active:scale-95">
+              <Text className="text-white font-black text-center text-xl uppercase">Start Matchmaking</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text className="text-white/50 font-bold animate-pulse text-center">Waiting for Captain to start...</Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+
+  // SEARCHING OPPONENT
+  if (room.status === 'searching') {
+    const formattedTime = searchTime.toString().padStart(2, '0');
+    return (
+      <View className="space-y-6 flex-1 items-center justify-center">
+        <View className="bg-indigo-900/50 p-10 rounded-3xl border border-indigo-400/20 items-center w-full shadow-2xl">
+          <Text className="text-3xl font-black text-yellow-300 uppercase text-center mb-8 tracking-widest">Matchmaking</Text>
+          <View className="relative justify-center items-center mb-8">
+            <ActivityIndicator size="large" color="#facc15" className="absolute scale-[3]" />
+            <Text className="text-5xl font-black text-white">{formattedTime}</Text>
+          </View>
+          <Text className="text-white/60 font-bold text-center text-lg uppercase tracking-wider">Finding opponents...</Text>
+        </View>
+      </View>
+    );
+  }
+
   if (room.status === 'waiting') {
     return (
       <View className="space-y-6">
@@ -197,8 +296,27 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
 
         <Scoreboard room={room} playerId={playerId} />
         
-        {room.capacity > [room.player1_id, room.player2_id, room.player3_id].filter(Boolean).length && (
-          <InviteFriends roomId={room.id} />
+        {room.capacity >= 4 ? (
+          <View className="flex-row justify-between mb-4">
+            <View className="flex-1 bg-blue-900/30 p-4 rounded-2xl mr-2 border border-blue-500/30">
+              <Text className="text-white font-black uppercase text-center mb-2">Team 1</Text>
+              {room.team1_names?.map((name, i) => (
+                <Text key={i} className="text-white/80 text-xs text-center">{name} {room.team1_captain === room.team1?.[i] ? '(C)' : ''}</Text>
+              ))}
+              {(room.team1?.length || 0) < (room.capacity / 2) && <Text className="text-white/30 text-xs text-center italic mt-2">Waiting...</Text>}
+            </View>
+            <View className="flex-1 bg-red-900/30 p-4 rounded-2xl ml-2 border border-red-500/30">
+              <Text className="text-white font-black uppercase text-center mb-2">Team 2</Text>
+              {room.team2_names?.map((name, i) => (
+                <Text key={i} className="text-white/80 text-xs text-center">{name} {room.team2_captain === room.team2?.[i] ? '(C)' : ''}</Text>
+              ))}
+              {(room.team2?.length || 0) < (room.capacity / 2) && <Text className="text-white/30 text-xs text-center italic mt-2">Waiting...</Text>}
+            </View>
+          </View>
+        ) : (
+          room.capacity > [room.player1_id, room.player2_id, room.player3_id].filter(Boolean).length && (
+            <InviteFriends roomId={room.id} />
+          )
         )}
 
         {isHost && (
@@ -550,6 +668,45 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     );
   }
 
+
+  // CAPTAIN SELECTION
+  if (room.status === 'captain_choosing_batsman' || room.status === 'captain_choosing_bowler') {
+    const isTeam1 = room.team1?.includes(playerId);
+    const isTeam2 = room.team2?.includes(playerId);
+    const myTeam = isTeam1 ? room.team1 : room.team2;
+    const myTeamNames = isTeam1 ? room.team1_names : room.team2_names;
+    const isCaptain = (isTeam1 && room.team1_captain === playerId) || (isTeam2 && room.team2_captain === playerId);
+    
+    // Who is selecting?
+    // If it's choosing batsman, the team that is batting selects.
+    // Wait, we need to know who is batting. We can check room.innings and previous batsman?
+    // Let's just say "Captain is choosing".
+    
+    return (
+      <View className="space-y-6 flex-1 justify-center">
+        <Text className="text-3xl font-black text-white text-center uppercase tracking-widest mb-4">
+          Captain's Choice
+        </Text>
+        
+        {isCaptain ? (
+          <View className="bg-white/10 p-6 rounded-3xl border border-yellow-400/30">
+            <Text className="text-white text-center mb-4">Select the next {room.status === 'captain_choosing_batsman' ? 'Batsman' : 'Bowler'}</Text>
+            {myTeam?.map((id, index) => (
+              <TouchableOpacity 
+                key={id}
+                onPress={() => takeAction({ type: 'SELECT_PLAYER', targetId: id } as any)}
+                className="bg-blue-600 p-4 rounded-xl mb-2"
+              >
+                <Text className="text-white font-bold text-center">{myTeamNames?.[index]}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <Text className="text-white/60 text-center animate-pulse">Waiting for your Captain to select...</Text>
+        )}
+      </View>
+    );
+  }
   // PLAYING
   if (room.status === 'playing') {
     const isBat = playerId === room.current_batsman;

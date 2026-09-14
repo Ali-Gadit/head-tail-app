@@ -27,11 +27,26 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
   const p2T = room.p2_throw;
   const p3T = room.p3_throw;
 
-  const bT = room.current_batsman === room.player1_id ? p1T : (room.current_batsman === room.player2_id ? p2T : p3T);
-  const boT = room.current_bowler === room.player1_id ? p1T : (room.current_bowler === room.player2_id ? p2T : p3T);
-
-  const batName = room.current_batsman === room.player1_id ? room.p1_name : (room.current_batsman === room.player2_id ? room.p2_name : room.p3_name);
-  const bowlName = room.current_bowler === room.player1_id ? room.p1_name : (room.current_bowler === room.player2_id ? room.p2_name : room.p3_name);
+  const isSquad = room.capacity >= 4;
+  let bT, boT, batName, bowlName;
+  if (isSquad) {
+    const batIsT1 = room.team1?.includes(room.current_batsman || '');
+    bT = batIsT1 ? p1T : p2T;
+    boT = batIsT1 ? p2T : p1T;
+    
+    // For squads, we can show the team name, or the player name. 
+    // The actual batsman is current_batsman.
+    const batIdx = batIsT1 ? room.team1?.indexOf(room.current_batsman!) : room.team2?.indexOf(room.current_batsman!);
+    const bowlIdx = batIsT1 ? room.team2?.indexOf(room.current_bowler!) : room.team1?.indexOf(room.current_bowler!);
+    
+    batName = batIsT1 ? room.team1_names?.[batIdx!] : room.team2_names?.[batIdx!];
+    bowlName = batIsT1 ? room.team2_names?.[bowlIdx!] : room.team1_names?.[bowlIdx!];
+  } else {
+    bT = room.current_batsman === room.player1_id ? p1T : (room.current_batsman === room.player2_id ? p2T : p3T);
+    boT = room.current_bowler === room.player1_id ? p1T : (room.current_bowler === room.player2_id ? p2T : p3T);
+    batName = room.current_batsman === room.player1_id ? room.p1_name : (room.current_batsman === room.player2_id ? room.p2_name : room.p3_name);
+    bowlName = room.current_bowler === room.player1_id ? room.p1_name : (room.current_bowler === room.player2_id ? room.p2_name : room.p3_name);
+  }
 
   const isBat = playerId === room.current_batsman;
 

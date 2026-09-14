@@ -8,11 +8,21 @@ interface ScoreboardProps {
 }
 
 export default function Scoreboard({ room, playerId }: ScoreboardProps) {
-  const players = [
-    { id: room.player1_id, score: room.p1_score, label: room.p1_name || 'P1' },
-    { id: room.player2_id, score: room.p2_score, label: room.p2_name || 'P2' },
-    { id: room.player3_id, score: room.p3_score, label: room.p3_name || 'P3' },
-  ].slice(0, room.capacity);
+  const isSquad = room.capacity >= 4;
+  let players: any[] = [];
+  
+  if (isSquad) {
+    players = [
+      { id: 'team1', score: room.team1_score || 0, label: 'Team 1 (Blue)' },
+      { id: 'team2', score: room.team2_score || 0, label: 'Team 2 (Red)' }
+    ];
+  } else {
+    players = [
+      { id: room.player1_id, score: room.p1_score, label: room.p1_name || 'P1' },
+      { id: room.player2_id, score: room.p2_score, label: room.p2_name || 'P2' },
+      { id: room.player3_id, score: room.p3_score, label: room.p3_name || 'P3' },
+    ].slice(0, room.capacity);
+  }
 
   if (room.status === 'waiting' || room.status === 'team_selection' || room.status === 'toss_3p') {
     return (

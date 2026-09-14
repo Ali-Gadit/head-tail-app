@@ -1,4 +1,7 @@
 export type GameStatus = 
+  | 'party_lobby'
+  | 'searching'
+  | 'redirect'
   | 'waiting'        // Waiting for players
   | 'team_selection' // NEW: Players selecting their squad
   | 'toss_3p'        // 3P: 3-way Up/Down toss
@@ -9,7 +12,9 @@ export type GameStatus =
   | 'toss_decision'  // Match: Toss winner picking Bat/Bowl
   | 'playing'        // Match in progress
   | 'reveal'         // Showing last play
-  | 'game_over';     // Finished
+  | 'game_over'
+  | 'captain_choosing_batsman'
+  | 'captain_choosing_bowler';     // Finished
 
 export interface Room {
   id: string;
@@ -48,6 +53,7 @@ export interface Room {
   current_batsman: string | null;
   current_bowler: string | null;
     is_ranked?: boolean;
+  toss_winner?: string | null;
     rank_tier?: string;
   waiting_player_id: string | null;
   innings: 1 | 2;
@@ -84,4 +90,6 @@ export type UserAction =
   | { type: 'CONTINUE' }
   | { type: 'START_MATCH'; oversLimit: number | null; wicketsLimit: number }
   | { type: 'SUBMIT_TEAM'; team: string; players: string[] }
-  | { type: 'PLAY_AGAIN' };
+  | { type: 'PLAY_AGAIN' }
+  | { type: 'SELECT_PLAYER', targetId: string }
+  | { type: 'START_MATCHMAKING' };
