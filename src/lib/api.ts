@@ -450,8 +450,8 @@ addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer')
     return data;
   },
 
-  claimDailyReward: async (userId: string) => {
-    const { data, error } = await supabase.rpc('claim_daily_reward', { user_id: userId });
+  claimDailyReward: async (userId: string, amount: number = 100) => {
+    const { data, error } = await supabase.rpc('claim_daily_reward', { user_id: userId, reward_amount: amount });
     if (error) throw error;
     if (data.error) throw new Error(data.error);
     return data;

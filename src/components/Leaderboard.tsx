@@ -8,7 +8,7 @@ type Player = {
   coins: number;
 };
 
-export default function Leaderboard() {
+export default function Leaderboard({ iconOnly }: { iconOnly?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,9 +37,10 @@ export default function Leaderboard() {
     <>
       <TouchableOpacity 
         onPress={() => setIsOpen(true)}
-        className="flex-row items-center gap-2 bg-yellow-400 px-4 py-2 rounded-full shadow-lg active:scale-95 mt-4"
+        className={`flex-row items-center justify-center bg-yellow-400 rounded-full shadow-lg active:scale-95 ${iconOnly ? 'w-10 h-10' : 'gap-2 px-4 py-2 mt-4'}`}
       >
-        <Text className="text-indigo-900 font-black text-xs uppercase tracking-wider">🏆 Leaderboard</Text>
+        <Text className="text-indigo-900 font-black text-lg">🏆</Text>
+        {!iconOnly && <Text className="text-indigo-900 font-black text-xs uppercase tracking-wider">Leaderboard</Text>}
       </TouchableOpacity>
 
       <Modal

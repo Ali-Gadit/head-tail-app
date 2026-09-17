@@ -60,47 +60,60 @@ export default function CoinShop({ visible, onClose }: CoinShopProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View className="flex-1 bg-black/80 justify-center p-4">
-        <View className="bg-indigo-900 border border-indigo-400 p-6 rounded-3xl h-[85%]">
-          <TouchableOpacity onLongPress={cheatDiamonds}>
-             <Text className="text-3xl font-black text-white text-center mb-6">STORE</Text>
-          </TouchableOpacity>
+      <View className="flex-1 bg-black/80 justify-center items-center p-2">
+        <View className="flex-1 bg-indigo-950 border border-indigo-400 p-4 rounded-3xl w-full max-w-3xl max-h-[95%] shadow-2xl">
+          
+          <View className="flex-row justify-between items-center mb-3 px-2">
+            <TouchableOpacity onLongPress={cheatDiamonds}>
+               <Text className="text-2xl font-black text-white italic tracking-tighter">STORE</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} disabled={loading} className="w-8 h-8 rounded-full bg-white/10 items-center justify-center active:scale-95">
+              <Text className="text-white font-bold">✕</Text>
+            </TouchableOpacity>
+          </View>
           
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            <Text className="text-white opacity-50 font-bold tracking-widest text-[10px] uppercase mb-4">Gold Packs</Text>
             
-            <View className="flex-row flex-wrap justify-between mb-6">
-              {[1, 10, 50, 100].map((diamonds) => (
-                <TouchableOpacity 
-                  key={diamonds} 
-                  onPress={() => buyCoins(diamonds)} 
-                  disabled={loading} 
-                  className="w-[48%] bg-white/10 p-4 rounded-2xl mb-4 border border-white/20 items-center active:scale-95"
-                >
-                  <Text className="text-yellow-400 font-black text-xl mb-1">{diamonds}k 🪙</Text>
-                  <View className="bg-cyan-500/20 px-3 py-1 rounded-full border border-cyan-500/50">
-                    <Text className="text-cyan-400 font-bold text-xs">{diamonds} 💎</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text className="text-white opacity-50 font-bold tracking-widest text-[10px] uppercase mb-4">Tokens</Text>
-            <View className="bg-white/10 p-4 rounded-2xl mb-6 border border-white/20">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-white font-bold text-lg">Private Room Token 🎟️</Text>
-                <Text className="text-cyan-400 font-bold text-lg">50 💎</Text>
+            {/* Tokens Section (Horizontal Banner) */}
+            <View className="bg-gradient-to-r from-purple-900 to-indigo-800 p-3 rounded-2xl mb-4 border border-purple-500/50 flex-row items-center justify-between shadow-lg">
+              <View className="flex-1 mr-4">
+                <Text className="text-white font-black text-lg italic tracking-tight">PRIVATE ROOM TOKEN 🎟️</Text>
+                <Text className="text-white/60 text-[10px] uppercase font-bold">Create private multiplayer matches.</Text>
               </View>
-              <Text className="text-white/60 text-xs mb-4">Used to create private multiplayer matches with friends.</Text>
-              <TouchableOpacity onPress={buyToken} disabled={loading} className="bg-purple-500 py-3 rounded-xl active:scale-95">
-                <Text className="text-white font-black text-center uppercase">Buy Token</Text>
+              <TouchableOpacity onPress={buyToken} disabled={loading} className="bg-purple-500 px-4 py-2 rounded-xl active:scale-95 border border-purple-400 flex-row items-center shadow-lg">
+                <Text className="text-white font-black uppercase text-xs mr-2">BUY</Text>
+                <View className="bg-black/30 px-2 py-0.5 rounded-md">
+                   <Text className="text-cyan-400 font-bold text-xs">50 💎</Text>
+                </View>
               </TouchableOpacity>
             </View>
+
+            {/* Gold Packs Grid */}
+            <Text className="text-white/50 font-black tracking-widest text-[10px] uppercase mb-2 px-1">Gold Packs</Text>
+            
+            <View className="flex-row flex-wrap justify-between gap-y-3">
+              {[1, 10, 50, 100, 500, 1000].map((diamonds) => {
+                const coins = diamonds >= 1000 ? `${diamonds/1000}M` : `${diamonds}k`;
+                return (
+                  <TouchableOpacity 
+                    key={diamonds} 
+                    onPress={() => buyCoins(diamonds)} 
+                    disabled={loading} 
+                    className="w-[32%] bg-white/5 p-3 rounded-2xl border border-white/10 items-center active:scale-95 shadow-md"
+                  >
+                    <Text className="text-2xl mb-1 drop-shadow-md">🪙</Text>
+                    <Text className="text-yellow-400 font-black text-lg leading-tight mb-2">{coins}</Text>
+                    <View className="bg-cyan-500/20 px-3 py-1 rounded-full border border-cyan-500/50 w-full">
+                      <Text className="text-cyan-400 font-bold text-xs text-center">{diamonds} 💎</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            
+            <View className="h-6" />
           </ScrollView>
 
-          <TouchableOpacity onPress={onClose} disabled={loading} className="py-4 mt-4 border border-white/20 rounded-2xl active:scale-95 bg-white/5">
-            <Text className="text-white text-center font-bold uppercase">Close</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </Modal>

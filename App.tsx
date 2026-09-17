@@ -14,6 +14,8 @@ import NotificationManager from './src/components/NotificationManager';
 import BackgroundMusic from './src/components/BackgroundMusic';
 import Leaderboard from './src/components/Leaderboard';
 import OnboardingModal from './src/components/OnboardingModal';
+import DailyRewardModal from './src/components/DailyRewardModal';
+import InviteEarnModal from './src/components/InviteEarnModal';
 import CoinShop from './src/components/CoinShop';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
@@ -154,21 +156,8 @@ function Dashboard() {
     }
   };
 
-  const claimReward = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      await api.claimDailyReward(user.id);
-      Alert.alert('Success', '100 coins claimed!');
-      // Refresh profile should ideally happen via real-time or context, simple reload for now:
-      // Actually we should just let them re-login or trigger a refresh in context, but wait
-      // Supabase realtime on profiles table handles this if we implement it, but we can just show the alert.
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [showInviteEarn, setShowInviteEarn] = useState(false);
 
   if (roomId && room && user) {
     return (
@@ -191,55 +180,56 @@ function Dashboard() {
         <View className="items-center mb-8">
           <Text className="text-4xl font-black text-white italic tracking-tighter">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
           {profile && (
-              <View className="items-center mt-4">
-                <Text className="text-white opacity-80 text-sm">Welcome, <Text className="text-yellow-300 font-bold">{profile.username}</Text></Text>
+              <View className="w-full flex-row justify-between mt-6 px-2">
                 
-                <View className="mt-1 bg-black/30 rounded-full px-3 py-1 border border-white/10">
-                  <Text className="text-white/60 text-xs font-mono">ID: <Text className="text-white font-bold">{String(profile?.friend_id || 0).padStart(7, '0')}</Text></Text>
+                {/* Top Left: Profile */}
+                <View className="flex-col">
+                  <View className="flex-row items-center bg-black/40 rounded-full pr-4 p-1 border border-white/10">
+                    <View className="w-10 h-10 bg-indigo-500 rounded-full items-center justify-center border-2 border-indigo-300">
+                      <Text className="text-xl">👤</Text>
+                    </View>
+                    <View className="ml-3">
+                      <Text className="text-white font-bold">{profile.username}</Text>
+                      <Text className="text-white/50 text-[10px] font-mono">ID: {String(profile?.friend_id || 0).padStart(7, '0')}</Text>
+                    </View>
+                  </View>
+                  
+                  <TouchableOpacity onPress={signOut} className="mt-3 ml-2 self-start bg-red-500/80 px-3 py-1 rounded-full active:scale-95">
+                    <Text className="text-white font-bold text-[10px] uppercase">Sign Out</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
-                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
-                    <Text className="text-yellow-400 font-bold">🪙 {profile.coins || 0}</Text>
+                {/* Top Right: Currencies & Icons */}
+                <View className="items-end gap-3">
+                  <View className="flex-row items-center gap-2">
+                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                      <Text className="text-yellow-400 font-bold text-xs">🪙 {profile.coins || 0}</Text>
+                    </View>
+                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                      <Text className="text-cyan-400 font-bold text-xs">💎 {profile.premium_currency || 0}</Text>
+                    </View>
+                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                      <Text className="text-purple-400 font-bold text-xs">🎟️ {profile.private_room_tokens || 0}</Text>
+                    </View>
                   </View>
-                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
-                    <Text className="text-cyan-400 font-bold">💎 {profile.premium_currency || 0}</Text>
-                  </View>
-                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
-                    <Text className="text-purple-400 font-bold">🎟️ {profile.private_room_tokens || 0}</Text>
+                  
+                  <View className="flex-row items-center gap-3 pr-1">
+                    <TouchableOpacity onPress={() => setShowInviteEarn(true)} className="bg-purple-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
+                       <Text className="text-white text-lg">💌</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowDailyReward(true)} className="bg-green-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
+                       <Text className="text-white text-lg">🎁</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-blue-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
+                       <Text className="text-white text-lg">🛒</Text>
+                    </TouchableOpacity>
+                    <Leaderboard iconOnly={true} />
                   </View>
                 </View>
-                
-                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
-                  <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-blue-500 px-3 py-1.5 rounded-full active:scale-95">
-                     <Text className="text-white text-[10px] font-black tracking-widest uppercase">🛒 SHOP</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={claimReward} disabled={loading} className="bg-green-500 px-3 py-1.5 rounded-full active:scale-95">
-                     <Text className="text-white text-[10px] font-black tracking-widest uppercase">🎁 Claim</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
-                <Leaderboard />
-                <TouchableOpacity onPress={signOut} className="mt-4 bg-red-500/80 px-4 py-1.5 rounded-full active:scale-95">
-                  <Text className="text-white font-bold text-xs uppercase">Sign Out</Text>
-                </TouchableOpacity>
+
               </View>
-            </View>
           )}
         </View>
-
-        
-          <View className="bg-gradient-to-br from-purple-600 to-indigo-600 p-6 rounded-[2rem] border border-white/20 shadow-2xl mb-6">
-            <Text className="text-white font-black text-2xl mb-2">?? INVITE & EARN</Text>
-            <Text className="text-white/80 text-sm mb-4 leading-tight">Share your code to get <Text className="font-bold text-yellow-400">10,000 Coins</Text> per friend! They also get 5,000 bonus Coins.</Text>
-            <View className="bg-black/30 p-4 rounded-2xl flex-row justify-between items-center border border-white/10">
-              <Text className="text-white font-mono text-2xl tracking-[0.2em] font-black">{String(profile?.friend_id || 0).padStart(7, '0')}</Text>
-              <TouchableOpacity onPress={() => { Clipboard.setStringAsync(String(profile?.friend_id || 0).padStart(7, '0')); Alert.alert('Copied!', 'Referral code copied to clipboard!'); }} className="bg-white/20 px-4 py-2 rounded-xl">
-                <Text className="text-white font-bold text-xs uppercase tracking-widest">Copy</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
 
           <View className="bg-white/10 p-6 sm:p-8 rounded-[2rem] border border-white/20 shadow-2xl space-y-6">
           <View>
@@ -297,6 +287,9 @@ function Dashboard() {
           <Text className="text-white/30 text-xs font-mono">Made with ♡ for school friends</Text>
         </View>
       </ScrollView>
+      <CoinShop visible={showCoinShop} onClose={() => setShowCoinShop(false)} />
+      <DailyRewardModal visible={showDailyReward} onClose={() => setShowDailyReward(false)} />
+      <InviteEarnModal visible={showInviteEarn} onClose={() => setShowInviteEarn(false)} />
     </SafeAreaView>
   );
 }
