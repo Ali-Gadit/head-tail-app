@@ -2,7 +2,7 @@ import "./global.css";
 import OfflineApp from './OfflineApp';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { NavigationBar } from 'expo-navigation-bar';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
@@ -21,7 +21,7 @@ import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
 
-function Dashboard() {
+function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [roomId, setRoomId] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
@@ -159,6 +159,8 @@ function Dashboard() {
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showInviteEarn, setShowInviteEarn] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   if (roomId && room && user) {
     return (
@@ -177,8 +179,33 @@ function Dashboard() {
       <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
       <CoinShop visible={showCoinShop} onClose={() => setShowCoinShop(false)} />
       <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      <Friends visible={showFriends} onClose={() => setShowFriends(false)} />
+      <DailyRewardModal visible={showDailyReward} onClose={() => setShowDailyReward(false)} />
+      <InviteEarnModal visible={showInviteEarn} onClose={() => setShowInviteEarn(false)} />
       <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
       
+      {/* Settings Modal */}
+      <Modal visible={showSettings} animationType="fade" transparent onRequestClose={() => setShowSettings(false)}>
+        <View className="flex-1 bg-black/80 justify-center items-center p-2">
+          <View className="bg-indigo-950 rounded-3xl p-6 border border-white/20 w-64 shadow-2xl items-center">
+            <Text className="text-white font-black text-xl tracking-widest uppercase mb-6">Settings</Text>
+            <View className="flex-row gap-4 mb-6 w-full h-12">
+              <TouchableOpacity onPress={() => setSoundEnabled(!soundEnabled)} className="w-12 h-12 rounded-full items-center justify-center bg-purple-600 border-2 border-purple-400 shadow-lg active:scale-95">
+                <Text className="text-xl">{soundEnabled ? '🎵' : '🔇'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={signOut} className="flex-1 bg-red-500/80 rounded-full items-center justify-center active:scale-95 border-2 border-red-400 shadow-lg">
+                <Text className="text-white font-black uppercase tracking-wider">Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity onPress={() => setShowSettings(false)} className="bg-white/20 px-6 py-2 rounded-full active:scale-95">
+              <Text className="text-white font-bold">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Absolute HUD Layer */}
       {profile && (
         <View className="absolute top-2 left-4 right-4 z-50 flex-row justify-between items-start" pointerEvents="box-none">
@@ -198,9 +225,6 @@ function Dashboard() {
                     <Text className="text-white/50 text-[10px] font-mono">ID: {String(profile?.friend_id || 0).padStart(7, '0')}</Text>
                   </View>
                 </View>
-                <TouchableOpacity onPress={signOut} className="mt-2 ml-2 self-start bg-red-500/80 px-3 py-1 rounded-full active:scale-95">
-                  <Text className="text-white font-bold text-[10px] uppercase">Sign Out</Text>
-                </TouchableOpacity>
               </View>
 
               {/* Currencies */}
@@ -249,6 +273,16 @@ function Dashboard() {
             </View>
             
           </View>
+
+          {/* Top Right: Friends & Settings */}
+          <View className="flex-row items-center gap-3 pr-2 mt-1 pointer-events-auto">
+            <TouchableOpacity onPress={() => setShowFriends(true)} className="w-10 h-10 bg-indigo-600 rounded-full items-center justify-center border border-indigo-400 shadow-lg active:scale-95">
+              <Text className="text-xl">👥</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSettings(true)} className="w-10 h-10 bg-gray-600 rounded-full items-center justify-center border border-gray-400 shadow-lg active:scale-95">
+              <Text className="text-xl">⚙️</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -270,17 +304,15 @@ function Dashboard() {
             </View>
           </View>
 
-          <TouchableOpacity onPress={createRoom} disabled={loading || findingMatch} className="w-full bg-yellow-400 py-4 rounded-2xl shadow-xl mt-6 active:scale-95 disabled:opacity-50">
+          <TouchableOpacity onPress={createRoom} disabled={loading} className="w-full bg-yellow-400 py-4 rounded-2xl shadow-xl mt-6 active:scale-95 disabled:opacity-50">
             <Text className="text-indigo-900 font-black text-center text-lg uppercase tracking-wider">{loading ? 'Creating...' : (gameMode === 'PVP' ? 'Create Private Room (1 🎟️)' : 'Start Match')}</Text>
           </TouchableOpacity>
 
           {gameMode === 'PVP' && (
             <>
               
-              
-              
-              <TouchableOpacity onPress={findMatch} disabled={loading || findingMatch } className="w-full bg-green-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-green-700">
-                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">{findingMatch ? 'Searching...' : 'Find Casual Match'}</Text>
+              <TouchableOpacity onPress={() => joinRoom('casual')} disabled={loading} className="w-full bg-green-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-green-700">
+                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">Find Casual Match</Text>
               </TouchableOpacity>
             </>
           )}
@@ -307,20 +339,16 @@ function Dashboard() {
           )}
         </View>
 
-        <Friends />
         <WorldChat />
         <View className="items-center mt-6">
           <Text className="text-white/30 text-xs font-mono">Made with ♡ for school friends</Text>
         </View>
       </ScrollView>
-      <CoinShop visible={showCoinShop} onClose={() => setShowCoinShop(false)} />
-      <DailyRewardModal visible={showDailyReward} onClose={() => setShowDailyReward(false)} />
-      <InviteEarnModal visible={showInviteEarn} onClose={() => setShowInviteEarn(false)} />
     </SafeAreaView>
   );
 }
 
-function Main() {
+function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, loading } = useAuth();
   
   if (loading) {
@@ -331,7 +359,7 @@ function Main() {
     );
   }
 
-  return user ? <Dashboard /> : (
+  return user ? <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} /> : (
     <SafeAreaView className="flex-1 bg-indigo-950 justify-center p-6">
        <Auth />
     </SafeAreaView>
@@ -341,6 +369,7 @@ function Main() {
 export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [networkChecked, setNetworkChecked] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   const checkNetwork = async () => {
     try {
@@ -372,9 +401,8 @@ export default function App() {
     <AuthProvider>
       <StatusBar hidden={true} />
       <NavigationBar hidden={true} />
-      <Main />
-      <BackgroundMusic />
+      <Main soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
+      <BackgroundMusic enabled={soundEnabled} />
     </AuthProvider>
   );
 }
-

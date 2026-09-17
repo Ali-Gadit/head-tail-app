@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, Text } from 'react-native';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
-export default function BackgroundMusic() {
-  const [muted, setMuted] = useState(false);
+export default function BackgroundMusic({ enabled = true }: { enabled?: boolean }) {
   const player = useAudioPlayer(require('../../assets/bgm.mp3'));
 
   useEffect(() => {
@@ -17,29 +16,15 @@ export default function BackgroundMusic() {
   useEffect(() => {
     if (player) {
       player.loop = true;
-      player.volume = 1.0;
-      player.play();
-    }
-  }, [player]);
-
-  const toggleMute = () => {
-    if (player) {
-      if (muted) {
+      if (enabled) {
+        player.volume = 1.0;
         player.play();
-        setMuted(false);
       } else {
+        player.volume = 0.0;
         player.pause();
-        setMuted(true);
       }
     }
-  };
+  }, [player, enabled]);
 
-  return (
-    <TouchableOpacity 
-      onPress={toggleMute}
-      className="absolute bottom-4 left-4 w-12 h-12 rounded-full items-center justify-center bg-purple-600 border-2 border-purple-400 z-50 shadow-lg opacity-80"
-    >
-      <Text className="text-xl">{!muted ? '🎵' : '🔇'}</Text>
-    </TouchableOpacity>
-  );
+  return null;
 }
