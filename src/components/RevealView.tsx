@@ -35,8 +35,11 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
 
   const isBat = playerId === room.current_batsman;
 
-  const isOut = type === 'play' && bT !== null && boT !== null && bT === boT;
-  const runsScored = type === 'play' && bT !== null && boT !== null && bT !== boT ? bT : 0;
+  const isDeadBall = type === 'play' && bT === 0 && boT === 0;
+  const isNoBall = type === 'play' && boT === 0 && bT !== null && bT > 0;
+  
+  const isOut = type === 'play' && bT !== null && boT !== null && bT === boT && !isDeadBall;
+  const runsScored = type === 'play' && bT !== null && boT !== null && bT !== boT ? (isNoBall ? bT + 1 : bT) : 0;
 
   return (
     <View className="items-center justify-center space-y-8 flex-1">
@@ -83,14 +86,21 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
               </View>
             ) : (
               <View className="items-center justify-center">
-                {isOut ? (
+                {isDeadBall ? (
+                  <Text className="text-5xl font-black uppercase text-gray-400 shadow-xl mb-4 text-center">
+                    DEAD BALL
+                  </Text>
+                ) : isOut ? (
                   <Text className="text-6xl font-black uppercase text-red-500 shadow-xl mb-4 text-center">
                     OUT! 💥
                   </Text>
                 ) : (
-                  <Text className="text-6xl font-black uppercase text-green-400 shadow-xl mb-4 text-center">
-                    +{runsScored} RUNS!
-                  </Text>
+                  <View className="items-center">
+                    {isNoBall && <Text className="text-red-400 font-bold text-xl uppercase mb-1">NO BALL!</Text>}
+                    <Text className="text-6xl font-black uppercase text-green-400 shadow-xl mb-4 text-center">
+                      +{runsScored} RUNS!
+                    </Text>
+                  </View>
                 )}
                 <TouchableOpacity
                   onPress={onContinue}

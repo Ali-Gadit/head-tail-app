@@ -49,11 +49,13 @@ export default function OfflineApp({ onRetry }: { onRetry: () => void }) {
       p2_team: null,
       p3_team: null,
       p1_players: [],
-      p2_players: [],
+      p2_players: ['Bot'],
       p3_players: [],
       p1_current_player_index: 0,
       p2_current_player_index: 0,
-      p3_current_player_index: 0
+      p3_current_player_index: 0,
+      active_batsman_name: null,
+      active_bowler_name: null
     });
   };
 

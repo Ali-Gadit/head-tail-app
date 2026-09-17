@@ -91,14 +91,23 @@ export default function Friends() {
     setSearchResult(null);
 
     try {
-      if (searchQuery.toUpperCase() === profile?.friend_id) {
+      const rawQuery = searchQuery.trim().toUpperCase();
+      const possibleValues = [rawQuery];
+      const num = parseInt(rawQuery, 10);
+      if (!isNaN(num)) {
+        possibleValues.push(num.toString());
+        possibleValues.push(num.toString().padStart(7, '0'));
+      }
+
+      if (possibleValues.includes(String(profile?.friend_id))) {
         throw new Error("You can't search for yourself!");
       }
 
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('friend_id', searchQuery.toUpperCase())
+        .in('friend_id', possibleValues)
+        .limit(1)
         .single();
 
       if (error || !data) {
@@ -177,7 +186,7 @@ export default function Friends() {
       <View className="mb-6">
         <View className="flex-row gap-2">
           <TextInput
-            placeholder="Search ID (e.g. ALI#1234)"
+            placeholder="Search ID (e.g. 0000001)"
             placeholderTextColor="rgba(255,255,255,0.4)"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -197,10 +206,10 @@ export default function Friends() {
 
       {searchResult && (
         <View className="bg-white/20 border border-white/40 rounded-xl p-4 mb-6 flex-row justify-between items-center">
-          <View>
-            <Text className="font-bold text-lg text-white">{searchResult.username}</Text>
-            <Text className="text-xs text-white/70 font-mono">{searchResult.friend_id}</Text>
-          </View>
+              <View>
+                <Text className="text-white font-bold text-lg">{searchResult.username}</Text>
+                <Text className="text-xs text-white/70 font-mono">{String(searchResult.friend_id).padStart(7, '0')}</Text>
+              </View>
           <TouchableOpacity onPress={() => sendRequest(searchResult.id)} className="bg-indigo-600 px-4 py-2 rounded-lg shadow-lg active:scale-95">
             <Text className="text-white font-bold text-sm">Add Friend</Text>
           </TouchableOpacity>
@@ -220,7 +229,7 @@ export default function Friends() {
                 <View className={`w-3 h-3 rounded-full ${friend.is_online ? 'bg-green-400' : 'bg-gray-400/50'}`} style={friend.is_online ? { shadowColor: '#4ade80', shadowOpacity: 0.8, shadowRadius: 8, elevation: 4 } : undefined} />
                 <View>
                   <Text className="font-bold text-white leading-tight">{friend.username}</Text>
-                  <Text className="text-[10px] text-white/60 font-mono">{friend.friend_id}</Text>
+                  <Text className="text-[10px] text-white/60 font-mono">{String(friend.friend_id).padStart(7, '0')}</Text>
                 </View>
               </View>
             </View>

@@ -7,6 +7,9 @@ export type GameStatus =
   | 'toss_throw'     // Match: Both picking fingers (1-5)
   | 'toss_reveal'    // Match: Showing finger toss result
   | 'toss_decision'  // Match: Toss winner picking Bat/Bowl
+  | 'select_roles'   // NEW: Start of match, pick openers
+  | 'select_batsman' // NEW: Wicket fell, pick next batsman
+  | 'select_bowler'  // NEW: Over ended, pick next bowler
   | 'playing'        // Match in progress
   | 'reveal'         // Showing last play
   | 'game_over';     // Finished
@@ -36,6 +39,8 @@ export interface Room {
   team1_throw?: number | null;
   team2_throw?: number | null;
   bet_amount: number;
+  bet_currency?: 'coins' | 'premium';
+  turn_timer?: number;
   status: GameStatus;
   toss_call: 'head' | 'tail' | null;
   toss_choices: Record<string, 'up' | 'down' | 'play_again'>;
@@ -54,6 +59,7 @@ export interface Room {
   target: number | null;
   winner: string | null;
   stage: 'round1' | 'final' | 'team_toss' | null;
+  is_public?: boolean;
   updated_at: string;
 
   // New Cricket Rules fields
@@ -74,6 +80,8 @@ export interface Room {
   p1_current_player_index: number;
   p2_current_player_index: number;
   p3_current_player_index: number;
+  active_batsman_name: string | null;
+  active_bowler_name: string | null;
 }
 
 export type UserAction = 
@@ -82,6 +90,8 @@ export type UserAction =
   | { type: 'TOSS_DECISION'; choice: 'bat' | 'bowl' }
   | { type: 'THROW'; fingers: number }
   | { type: 'CONTINUE' }
-  | { type: 'START_MATCH'; oversLimit: number | null; wicketsLimit: number }
+  | { type: 'START_MATCH' }
+  | { type: 'UPDATE_SETTINGS'; oversLimit: number | null; wicketsLimit: number; betAmount: number; turnTimer: number }
   | { type: 'SUBMIT_TEAM'; team: string; players: string[] }
+  | { type: 'SELECT_ROLE'; role: 'batsman' | 'bowler'; playerName: string }
   | { type: 'PLAY_AGAIN' };

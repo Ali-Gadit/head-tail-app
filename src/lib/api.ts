@@ -8,12 +8,33 @@ async function handlePayout(updates: any, finalRoom: any) {
   if (updates.status === 'game_over') {
     if (finalRoom.bet_amount > 0) {
       const pot = finalRoom.bet_amount * finalRoom.capacity;
+      const isPremium = finalRoom.bet_currency === 'premium';
+      const rpcName = isPremium ? 'update_profile_premium' : 'update_profile_coins';
+      
       if (finalRoom.winner === 'TIE') {
         for (const pid of [finalRoom.player1_id, finalRoom.player2_id, finalRoom.player3_id].filter(Boolean)) {
-          await supabase.rpc('update_profile_coins', { user_id: pid, amount: finalRoom.bet_amount });
+          if (pid !== BOT_UUID) {
+            await supabase.rpc(rpcName, { user_id: pid, amount: finalRoom.bet_amount });
+          }
         }
+      } else if (finalRoom.winner && finalRoom.winner !== BOT_UUID) {
+        await supabase.rpc(rpcName, { user_id: finalRoom.winner, amount: pot });
+      }
+    } else if (finalRoom.bet_amount === 0 && !finalRoom.is_ranked && !finalRoom.is_public) {
+      // Casual matched games give 1000 for win, 500 for lose (when public room fills up, it sets is_public to false)
+      // Actually finding a match starts public, but when joined it becomes false
+      if (finalRoom.winner === 'TIE') {
+         for (const pid of [finalRoom.player1_id, finalRoom.player2_id].filter(Boolean)) {
+           if (pid !== BOT_UUID) await supabase.rpc('update_profile_coins', { user_id: pid, amount: 750 });
+         }
       } else if (finalRoom.winner) {
-        await supabase.rpc('update_profile_coins', { user_id: finalRoom.winner, amount: pot });
+         if (finalRoom.winner !== BOT_UUID) {
+           await supabase.rpc('update_profile_coins', { user_id: finalRoom.winner, amount: 1000 });
+         }
+         const loser = finalRoom.winner === finalRoom.player1_id ? finalRoom.player2_id : finalRoom.player1_id;
+         if (loser && loser !== BOT_UUID) {
+           await supabase.rpc('update_profile_coins', { user_id: loser, amount: 500 });
+         }
       }
     }
     
@@ -40,16 +61,46 @@ async function handlePayout(updates: any, finalRoom: any) {
 }
 
 export const api = {
-  createRoom: async ({ name, capacity, userId, betAmount = 0, isBot = false }: any) => {
+  buyPrivateRoomToken: async (userId: string) => {
+    const { data: profile } = await supabase.from('profiles').select('premium_currency').eq('id', userId).single();
+    if (!profile || profile.premium_currency < 50) {
+      throw new Error('Not enough diamonds (50💎 required)');
+    }
+    const { error } = await supabase.rpc('buy_private_room_token', { uid: userId });
+    if (error) throw error;
+    return true;
+  },
+
+  exchangeDiamonds: async (userId: string, diamondsToExchange: number) => {
+    if (diamondsToExchange <= 0) throw new Error('Invalid amount');
+    const { data: profile } = await supabase.from('profiles').select('premium_currency, coins').eq('id', userId).single();
+    if (!profile || profile.premium_currency < diamondsToExchange) {
+      throw new Error(`Not enough diamonds. You have ${profile?.premium_currency || 0}💎.`);
+    }
+    
+    // We update manually because the old RPC hardcoded 1 diamond = 100 gold instead of 1000
+    const { error } = await supabase.from('profiles').update({
+      premium_currency: profile.premium_currency - diamondsToExchange,
+      coins: (profile.coins || 0) + (diamondsToExchange * 1000)
+    }).eq('id', userId);
+
+    if (error) throw error;
+    return true;
+  },
+
+  createRoom: async ({ name, capacity, userId, betAmount = 1000, oversLimit = 2, wicketsLimit = 3, turnTimer = 7, betCurrency = 'coins', isBot = false }: any) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const player1_id = userId || 'anonymous';
 
-    if (userId && betAmount > 0) {
-      const { data: profile } = await supabase.from('profiles').select('coins').eq('id', userId).single();
-      if (!profile || profile.coins < betAmount) {
-        throw new Error('Not enough coins to place this bet!');
+    if (userId) {
+      const { data: profile } = await supabase.from('profiles').select('coins, premium_currency, private_room_tokens').eq('id', userId).single();
+      
+      if (!isBot) {
+        if (!profile || profile.private_room_tokens < 1) {
+          throw new Error('You do not have enough private room tokens to create a multiplayer room!');
+        }
+        await supabase.rpc('consume_private_room_token', { uid: userId });
       }
-      await supabase.rpc('update_profile_coins', { user_id: userId, amount: -betAmount });
     }
 
     const insertData: any = {
@@ -58,6 +109,10 @@ export const api = {
       p1_name: name || 'Player 1',
       capacity: capacity || 2,
       bet_amount: betAmount,
+      bet_currency: betCurrency,
+      overs_limit: oversLimit,
+      wickets_limit: wicketsLimit,
+      turn_timer: turnTimer,
       status: 'waiting',
       p1_score: 0,
       p2_score: 0,
@@ -107,7 +162,11 @@ export const api = {
       bet_amount: 0,
       status: 'waiting',
       p1_score: 0, p2_score: 0, innings: 1,
-      is_public: true
+      is_public: true,
+      is_ranked: false,
+      overs_limit: 2,
+      wickets_limit: 1,
+      turn_timer: 5
     }).select().single();
 
     if (error) throw error;
@@ -197,12 +256,12 @@ export const api = {
       return { room: newRoom, isNew: true };
     }
   },
-addBotToRoom: async (roomId: string, p1Id: string) => {
+addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer') => {
     const { data, error } = await supabase
       .from('rooms')
       .update({
         player2_id: BOT_UUID,
-        p2_name: 'Computer',
+        p2_name: botName,
         is_public: false
         // Keep status as 'waiting' so host can configure Overs and Wickets
       })
@@ -230,13 +289,7 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
       return { room, playerId };
     }
 
-    if (userId && room.bet_amount > 0) {
-      const { data: profile } = await supabase.from('profiles').select('coins').eq('id', userId).single();
-      if (!profile || profile.coins < room.bet_amount) {
-        throw new Error('Not enough coins to match the bet!');
-      }
-      await supabase.rpc('update_profile_coins', { user_id: userId, amount: -room.bet_amount });
-    }
+
 
     const updates: any = {};
     if (!room.player2_id) {
@@ -282,19 +335,39 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
              player1_id: p1, p1_name: n1, player2_id: p2, p2_name: n2, player3_id: p3, p3_name: n3, 
              status: 'waiting', bet_amount: 0, toss_choices: {}, p1_score: 0, p2_score: 0, p3_score: 0,
              p1_throw: null, p2_throw: null, p3_throw: null, current_batsman: null, current_bowler: null,
-             waiting_player_id: null, innings: 1, target: null, winner: null, stage: room.capacity === 2 ? null : 'round1'
+             waiting_player_id: null, innings: 1, target: null, winner: null, stage: room.capacity === 2 ? null : 'round1',
+             active_batsman_name: null, active_bowler_name: null
            };
          } else {
-           updates = { player1_id: p1, p1_name: n1, player2_id: p2, p2_name: n2, player3_id: p3, p3_name: n3, status: 'waiting' };
+           updates = { player1_id: p1, p1_name: n1, player2_id: p2, p2_name: n2, player3_id: p3, p3_name: n3, status: 'waiting', active_batsman_name: null, active_bowler_name: null };
          }
       } else {
-         updates = { player1_id: p1, p1_name: n1, player2_id: p2, p2_name: n2, player3_id: p3, p3_name: n3, status: 'waiting' };
+         updates = { player1_id: p1, p1_name: n1, player2_id: p2, p2_name: n2, player3_id: p3, p3_name: n3, status: 'waiting', active_batsman_name: null, active_bowler_name: null };
       }
     } else if (action.type === 'THROW') {
       const throwKey = playerId === room.player1_id ? 'p1_throw' : (playerId === room.player2_id ? 'p2_throw' : 'p3_throw');
       const throwUpdates: any = { [throwKey]: action.fingers };
       if (room.player2_id === BOT_UUID && playerId === room.player1_id) {
-         throwUpdates.p2_throw = Math.floor(Math.random() * 6) + 1;
+         let botThrow = Math.floor(Math.random() * 6) + 1;
+         
+         // If it is a casual match (bet_amount 0, turn_timer 5), make it difficult
+         if (room.bet_amount === 0 && room.turn_timer === 5) {
+            const isBotBatting = room.current_batsman === BOT_UUID;
+            const userThrow = action.fingers;
+            
+            if (isBotBatting) {
+               // Bot Batting: Bias towards high scores (4, 5, 6) 40% of the time to rack up runs
+               if (Math.random() < 0.40) {
+                  botThrow = Math.floor(Math.random() * 3) + 4; // Picks 4, 5, or 6
+               }
+            } else {
+               // Bot Bowling: Completely fair and random so the user doesn't feel cheated.
+               // At 100% random, average survival is exactly 6 balls (1 over), perfect for a 2-over game.
+               botThrow = Math.floor(Math.random() * 6) + 1;
+            }
+         }
+         
+         throwUpdates.p2_throw = botThrow;
       }
       const { data: updatedRoom, error: throwError } = await supabase.from('rooms').update(throwUpdates).eq('id', roomId).select().single();
       if (throwError) throw throwError;
@@ -324,6 +397,44 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
         return finalRoom;
       }
       return updatedRoom;
+    } else if (action.type === 'START_MATCH') {
+      const act = action as any;
+      if (act.oversLimit !== undefined) updates.overs_limit = act.oversLimit;
+      if (act.wicketsLimit !== undefined) updates.wickets_limit = act.wicketsLimit;
+      if (act.turnTimer !== undefined) updates.turn_timer = act.turnTimer;
+      if (act.betAmount !== undefined) updates.bet_amount = act.betAmount;
+      if (act.capacity !== undefined) updates.capacity = act.capacity;
+      
+      const bet = updates.bet_amount !== undefined ? updates.bet_amount : (room.bet_amount || 0);
+      if (bet > 0) {
+        const { data: p1Profile } = await supabase.from('profiles').select('coins').eq('id', room.player1_id).single();
+        if (!p1Profile || p1Profile.coins < bet) throw new Error('You do not have enough coins!');
+        
+        if (room.player2_id && room.player2_id !== BOT_UUID) {
+          const { data: p2Profile } = await supabase.from('profiles').select('coins').eq('id', room.player2_id).single();
+          if (!p2Profile || p2Profile.coins < bet) throw new Error(`${room.p2_name || 'Player 2'} does not have enough coins!`);
+        }
+        
+        if (room.player3_id && room.player3_id !== BOT_UUID) {
+          const { data: p3Profile } = await supabase.from('profiles').select('coins').eq('id', room.player3_id).single();
+          if (!p3Profile || p3Profile.coins < bet) throw new Error(`${room.p3_name || 'Player 3'} does not have enough coins!`);
+        }
+        
+        await supabase.rpc('update_profile_coins', { user_id: room.player1_id, amount: -bet });
+        if (room.player2_id && room.player2_id !== BOT_UUID) await supabase.rpc('update_profile_coins', { user_id: room.player2_id, amount: -bet });
+        if (room.player3_id && room.player3_id !== BOT_UUID) await supabase.rpc('update_profile_coins', { user_id: room.player3_id, amount: -bet });
+      }
+      const nextState = processAction({ ...room, ...updates }, playerId, action);
+      updates = { ...updates, ...nextState };
+    } else if (action.type === 'UPDATE_SETTINGS') {
+      if (playerId !== room.player1_id) throw new Error('Only host can update settings');
+      const act = action as any;
+      updates = {
+        overs_limit: act.oversLimit,
+        wickets_limit: act.wicketsLimit,
+        bet_amount: act.betAmount,
+        turn_timer: act.turnTimer
+      };
     } else {
       updates = processAction(room, playerId, action);
     }
@@ -344,5 +455,12 @@ addBotToRoom: async (roomId: string, p1Id: string) => {
     if (error) throw error;
     if (data.error) throw new Error(data.error);
     return data;
-  }
+  },
+
+  processDailyLogin: async (userId: string) => {
+    const { data, error } = await supabase.rpc('process_daily_login', { uid: userId });
+    if (error) console.error("Error processing daily login:", error);
+    return data;
+  },
+
 };

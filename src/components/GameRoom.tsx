@@ -16,6 +16,8 @@ interface GameRoomProps {
   playerId: string;
   onExit: () => void;
   onAction?: (action: UserAction | { type: 'EXIT_GAME' }) => Promise<void>;
+  initialEditMode?: boolean;
+  isCasualMatch?: boolean;
 }
 
 
@@ -52,12 +54,19 @@ const EMOTES = [
   { id: 'rose', icon: '🌹' },
 ];
 
-export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomProps) {
+export default function GameRoom({ room, playerId, onExit, onAction, initialEditMode, isCasualMatch: isCasualMatchProp }: GameRoomProps) {
+  const isCasualMatch = isCasualMatchProp ?? (room.bet_amount === 0 && !room.is_ranked && room.is_public === true);
+  const isBotMatch = room.player2_id === '00000000-0000-0000-0000-000000000000';
+
   const [loading, setLoading] = useState(false);
   const [myThrowInPlay, setMyThrowInPlay] = useState<number | null>(null);
   
   const [oversLimit, setOversLimit] = useState<number | null>(null);
   const [wicketsLimit, setWicketsLimit] = useState<number>(1);
+  const [turnTimer, setTurnTimer] = useState<number>(7);
+  const [betAmount, setBetAmount] = useState<number>(room.bet_amount || 0);
+  const [capacity, setCapacity] = useState<number>(room.capacity || 2);
+  const [isEditingSettings, setIsEditingSettings] = useState((initialEditMode && !isCasualMatch) || false);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [isCustomTeam, setIsCustomTeam] = useState(false);
@@ -84,10 +93,12 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const [timeLeft, setTimeLeft] = React.useState<number | null>(null);
 
   React.useEffect(() => {
-    if (room.status === 'playing' && room.is_ranked && myThrowInPlay === null) {
-      let timerVal = 7;
-      if (room.rank_tier === 'Gold' || room.rank_tier === 'Platinum') timerVal = 5;
-      if (room.rank_tier === 'Diamond' || room.rank_tier === 'Master' || room.rank_tier === 'Grandmaster') timerVal = 3;
+    if (room.status === 'playing' && myThrowInPlay === null) {
+      let timerVal = room.turn_timer || 7;
+      if (room.is_ranked) {
+        if (room.rank_tier === 'Gold' || room.rank_tier === 'Platinum') timerVal = 5;
+        if (room.rank_tier === 'Diamond' || room.rank_tier === 'Master' || room.rank_tier === 'Grandmaster') timerVal = 3;
+      }
       
       setTimeLeft(timerVal);
       const interval = setInterval(() => {
@@ -99,14 +110,14 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
              else api.takeAction(room.id, playerId, { type: 'THROW', fingers: 0 } as any);
              return 0;
           }
-          return prev ? prev - 1 : null;
+          return prev !== null ? prev - 1 : null;
         });
       }, 1000);
       return () => clearInterval(interval);
     } else {
       setTimeLeft(null);
     }
-  }, [room.status, room.is_ranked, room.rank_tier, myThrowInPlay]);
+  }, [room.status, room.is_ranked, room.rank_tier, room.turn_timer, myThrowInPlay]);
 
   React.useEffect(() => {
     if (latestSpecialMessage && latestSpecialMessage.timestamp > Date.now() - 5000) {
@@ -135,8 +146,7 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     sendMessage(chatText, 'text');
     setChatText('');
   };
-  const renderContent = () => {
-  
+
   useEffect(() => {
     if (myDbThrow === null) {
       setMyThrowInPlay(null);
@@ -187,24 +197,53 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
   const isP3 = playerId === room.player3_id;
   const isHost = isP1;
 
-  if (room.status === 'waiting') {
-    return (
-      <View className="space-y-6">
-        <View className="bg-indigo-900/50 p-6 rounded-3xl border border-indigo-400/20 text-center">
-          <Text className="text-white opacity-80 font-bold uppercase tracking-widest text-xs mb-2">Room Code</Text>
-          <Text className="text-5xl font-mono font-black text-yellow-400 tracking-[0.2em]">{room.code}</Text>
-        </View>
+  const renderContent = () => {
+    if (room.status === 'waiting') {
+      return (
+        <View className="space-y-6">
+        {!isCasualMatch && (
+          <View className="bg-indigo-900/50 p-6 rounded-3xl border border-indigo-400/20 text-center">
+            <Text className="text-white opacity-80 font-bold uppercase tracking-widest text-xs mb-2">Room Code</Text>
+            <Text className="text-5xl font-mono font-black text-yellow-400 tracking-[0.2em]">{room.code}</Text>
+          </View>
+        )}
 
         <Scoreboard room={room} playerId={playerId} />
         
-        {room.capacity > [room.player1_id, room.player2_id, room.player3_id].filter(Boolean).length && (
+        {!isCasualMatch && room.capacity > [room.player1_id, room.player2_id, room.player3_id].filter(Boolean).length && (
           <InviteFriends roomId={room.id} />
         )}
 
-        {isHost && (
+        {!isCasualMatch && isHost && (
           <View className="bg-white/10 p-4 rounded-3xl border border-white/20 mb-2">
             <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2">Match Settings</Text>
+
+            {!isBotMatch && (
+              <>
+                <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2 mt-2">Room Size</Text>
+                <View className="flex-row flex-wrap justify-between gap-2 mb-4">
+                  {[2, 3].map(size => (
+                    <TouchableOpacity key={size} onPress={() => setCapacity(size)} className={`flex-1 py-2 rounded-xl border ${capacity === size ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
+                      <Text className={`text-center font-black text-xs ${capacity === size ? 'text-indigo-900' : 'text-white/60'}`}>
+                        {size} PLAYERS
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
             
+            <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2 mt-2">Wager / Bet Amount</Text>
+            <View className="flex-row flex-wrap justify-between gap-2 mb-4">
+              {[0, 1000, 5000, 10000, 50000, 100000, 250000, 500000, 2000000].map(amount => (
+                <TouchableOpacity key={amount} onPress={() => setBetAmount(amount)} className={`w-[30%] py-2 rounded-xl border ${betAmount === amount ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
+                  <Text className={`text-center font-black text-[10px] ${betAmount === amount ? 'text-indigo-900' : 'text-white/60'}`}>
+                    {amount === 0 ? 'FREE' : amount >= 1000000 ? `🪙${amount/1000000}M` : `🪙${amount/1000}k`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2 mt-2">Overs</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
               {[2, 5, 10, 20, null].map(o => (
@@ -230,17 +269,34 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
                 </TouchableOpacity>
               ))}
             </View>
+
+            <Text className="text-white opacity-80 font-bold uppercase text-xs mb-2 mt-4">Speed</Text>
+            <View className="flex-row gap-2">
+              {[
+                { label: 'SLOW (7s)', value: 7 },
+                { label: 'MEDIUM (5s)', value: 5 },
+                { label: 'FAST (3s)', value: 3 }
+              ].map(speed => (
+                <TouchableOpacity 
+                  key={speed.value} 
+                  onPress={() => setTurnTimer(speed.value)} 
+                  className={`flex-1 py-2 rounded-xl border ${turnTimer === speed.value ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}
+                >
+                  <Text className={`text-center font-black text-[10px] ${turnTimer === speed.value ? 'text-indigo-900' : 'text-white/60'}`}>{speed.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
         {isHost && (
           <TouchableOpacity
-            onPress={() => takeAction({ type: 'START_MATCH', oversLimit, wicketsLimit })}
+            onPress={() => takeAction({ type: 'START_MATCH', oversLimit, wicketsLimit, turnTimer, betAmount, capacity } as any)}
             disabled={loading || (is2P ? !room.player2_id : (!room.player2_id || !room.player3_id))}
             className="w-full bg-yellow-400 disabled:opacity-50 py-4 rounded-2xl shadow-xl active:scale-95"
           >
             <Text className="text-indigo-900 font-black text-xl uppercase tracking-wider text-center">
-              {loading ? 'Starting...' : 'Start Match'}
+              {loading ? 'Starting...' : (isCasualMatch && !room.player2_id ? 'Searching for Opponent...' : 'Start Match')}
             </Text>
           </TouchableOpacity>
         )}
@@ -550,6 +606,56 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
     );
   }
 
+  // SELECT ROLES
+  if (room.status === 'select_roles' || room.status === 'select_batsman' || room.status === 'select_bowler') {
+    const isBat = playerId === room.current_batsman;
+    const isBowl = playerId === room.current_bowler;
+    const myPlayers = isP1 ? room.p1_players : (isP2 ? room.p2_players : room.p3_players);
+
+    let needsToSelect = false;
+    let roleType: 'batsman' | 'bowler' | null = null;
+
+    if (isBat && !room.active_batsman_name && (room.status === 'select_roles' || room.status === 'select_batsman')) {
+      needsToSelect = true;
+      roleType = 'batsman';
+    }
+    if (isBowl && !room.active_bowler_name && (room.status === 'select_roles' || room.status === 'select_bowler')) {
+      needsToSelect = true;
+      roleType = 'bowler';
+    }
+
+    return (
+      <View className="space-y-6 flex-1 items-center justify-center">
+        <Scoreboard room={room} playerId={playerId} />
+        <View className="bg-white/10 p-6 rounded-3xl w-full max-w-sm items-center">
+          {needsToSelect ? (
+            <>
+              <Text className="text-2xl font-black text-white uppercase text-center mb-6">
+                Select Your {roleType}
+              </Text>
+              <View className="flex-row flex-wrap justify-center gap-3 w-full">
+                {myPlayers?.map((pName) => (
+                  <TouchableOpacity
+                    key={pName}
+                    disabled={loading}
+                    onPress={() => takeAction({ type: 'SELECT_ROLE', role: roleType!, playerName: pName })}
+                    className="bg-indigo-500 py-3 px-4 rounded-xl active:scale-95 w-full"
+                  >
+                    <Text className="text-white font-black text-center">{pName}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : (
+            <Text className="text-white/50 font-bold animate-pulse text-lg text-center">
+              Waiting for opponent to select their player...
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   // PLAYING
   if (room.status === 'playing') {
     const isBat = playerId === room.current_batsman;
@@ -573,11 +679,11 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
               </Text>
             </View>
             
-            {room.is_ranked && timeLeft !== null && !myThrowInPlay && (
+            {timeLeft !== null && !myThrowInPlay && (
               <View className="mb-4 items-center">
                 <Text className="text-red-400 font-black text-2xl animate-pulse">{timeLeft}s</Text>
                 <View className="h-2 w-full bg-white/10 rounded-full mt-2 overflow-hidden">
-                  <Animated.View style={{ width: `${(timeLeft / 7) * 100}%` }} className="h-full bg-red-500" />
+                  <Animated.View style={{ width: `${(timeLeft / (room.turn_timer || 7)) * 100}%` }} className="h-full bg-red-500" />
                 </View>
               </View>
             )}
@@ -629,6 +735,11 @@ export default function GameRoom({ room, playerId, onExit, onAction }: GameRoomP
 
   return (
     <View className="flex-1">
+      <View className="absolute top-0 left-0 z-50">
+        <TouchableOpacity onPress={handleExit} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-red-500/80 border-red-400/50">
+          <Text className="text-lg text-white font-bold">X</Text>
+        </TouchableOpacity>
+      </View>
       <View className="absolute top-0 right-0 z-50 flex-row gap-2">
         <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
           <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>

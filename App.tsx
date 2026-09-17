@@ -2,8 +2,9 @@ import "./global.css";
 import OfflineApp from './OfflineApp';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { NavigationBar } from 'expo-navigation-bar';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
 import Auth from './src/components/Auth';
 import GameRoom from './src/components/GameRoom';
@@ -12,19 +13,29 @@ import WorldChat from './src/components/WorldChat';
 import NotificationManager from './src/components/NotificationManager';
 import BackgroundMusic from './src/components/BackgroundMusic';
 import Leaderboard from './src/components/Leaderboard';
+import OnboardingModal from './src/components/OnboardingModal';
+import CoinShop from './src/components/CoinShop';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
 
 function Dashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const [roomId, setRoomId] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
+  useEffect(() => {
+    if (user && user.user_metadata && !user.user_metadata.onboarded) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
+
   const [code, setCode] = useState('');
-  const [capacity, setCapacity] = useState<2 | 3>(2);
   const [gameMode, setGameMode] = useState<'PVP' | 'PVE'>('PVP');
-  const [betAmount, setBetAmount] = useState<number>(0);
+  const [isNewRoom, setIsNewRoom] = useState(false);
+  const [isCasualMode, setIsCasualMode] = useState(false);
+  const [showCoinShop, setShowCoinShop] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -48,6 +59,7 @@ function Dashboard() {
     setLoading(true);
     try {
       const result = await api.findRankedMatch(user.id, profile.username || 'Player', profile.rank_tier || 'Bronze', teamCapacity);
+      setIsCasualMode(false);
       setRoom(result.room);
       setRoomId(result.room.id);
       
@@ -75,19 +87,22 @@ function Dashboard() {
     setLoading(true);
     try {
       const result = await api.findMatch(user.id, profile.username);
+      setIsCasualMode(true);
       setRoom(result.room);
       setRoomId(result.room.id);
       
       if (result.isNew) {
-        // Wait 15 seconds for someone to join, else add bot
+        // Wait 60 seconds for someone to join, else add bot
         setTimeout(async () => {
           try {
-            await api.addBotToRoom(result.room.id, user.id);
+            const englishNames = ['John', 'Michael', 'David', 'James', 'William', 'Robert', 'Joseph', 'Charles', 'Thomas', 'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald', 'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin', 'Samuel'];
+            const randomName = englishNames[Math.floor(Math.random() * englishNames.length)];
+            await api.addBotToRoom(result.room.id, user.id, randomName);
           } catch(e) {
             // Probably someone joined already and player2_id is no longer null!
           }
           setFindingMatch(false);
-        }, 15000);
+        }, 60000);
       } else {
         setFindingMatch(false);
       }
@@ -104,11 +119,12 @@ function Dashboard() {
     try {
       const result = await api.createRoom({ 
         name: profile?.username || 'Player', 
-        capacity, 
+        capacity: 2, 
         userId: user?.id, 
-        betAmount, 
+        betAmount: 0, 
         isBot: gameMode === 'PVE' 
       });
+      setIsCasualMode(false);
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
@@ -128,6 +144,7 @@ function Dashboard() {
         name: profile?.username || 'Player', 
         userId: user?.id 
       });
+      setIsCasualMode(false);
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
@@ -156,9 +173,10 @@ function Dashboard() {
   if (roomId && room && user) {
     return (
       <SafeAreaView className="flex-1 bg-indigo-950">
+        <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
         <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
-        <View className="p-4 flex-1">
-          <GameRoom room={room} playerId={user.id} onExit={() => setRoomId(null)} />
+          <View className="p-4 flex-1">
+          <GameRoom room={room} playerId={user.id} onExit={() => { setRoomId(null); refreshProfile(); }} initialEditMode={isNewRoom} isCasualMatch={isCasualMode} />
         </View>
       </SafeAreaView>
     );
@@ -166,28 +184,42 @@ function Dashboard() {
 
   return (
     <SafeAreaView className="flex-1 bg-indigo-950">
+      <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
+      <CoinShop visible={showCoinShop} onClose={() => setShowCoinShop(false)} />
       <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
       <ScrollView contentContainerStyle={{ padding: 24, flexGrow: 1, justifyContent: 'center' }}>
         <View className="items-center mb-8">
           <Text className="text-4xl font-black text-white italic tracking-tighter">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
           {profile && (
-            <View className="items-center mt-4">
-              <Text className="text-white opacity-80 text-sm">Welcome, <Text className="text-yellow-300 font-bold">{profile.username}</Text></Text>
-              
-              <View className="mt-1 bg-black/30 rounded-full px-3 py-1 border border-white/10">
-                <Text className="text-white/60 text-xs font-mono">ID: <Text className="text-white font-bold">{String(profile?.friend_id || 0).padStart(8, '0')}</Text></Text>
-              </View>
-
-              <View className="flex-row items-center gap-2 mt-3">
-                <View className="bg-black/20 rounded-full px-3 py-1">
-                   <Text className="text-yellow-400 font-bold">🪙 {profile.coins}</Text>
+              <View className="items-center mt-4">
+                <Text className="text-white opacity-80 text-sm">Welcome, <Text className="text-yellow-300 font-bold">{profile.username}</Text></Text>
+                
+                <View className="mt-1 bg-black/30 rounded-full px-3 py-1 border border-white/10">
+                  <Text className="text-white/60 text-xs font-mono">ID: <Text className="text-white font-bold">{String(profile?.friend_id || 0).padStart(7, '0')}</Text></Text>
                 </View>
-                <TouchableOpacity onPress={claimReward} disabled={loading} className="bg-green-500 px-3 py-1.5 rounded-full active:scale-95">
-                   <Text className="text-white text-[10px] font-black tracking-widest uppercase">🎁 Claim</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View className="flex-row items-center gap-2 mt-4">
+
+                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
+                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
+                    <Text className="text-yellow-400 font-bold">🪙 {profile.coins || 0}</Text>
+                  </View>
+                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
+                    <Text className="text-cyan-400 font-bold">💎 {profile.premium_currency || 0}</Text>
+                  </View>
+                  <View className="bg-black/20 rounded-full px-3 py-1 flex-row items-center">
+                    <Text className="text-purple-400 font-bold">🎟️ {profile.private_room_tokens || 0}</Text>
+                  </View>
+                </View>
+                
+                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
+                  <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-blue-500 px-3 py-1.5 rounded-full active:scale-95">
+                     <Text className="text-white text-[10px] font-black tracking-widest uppercase">🛒 SHOP</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={claimReward} disabled={loading} className="bg-green-500 px-3 py-1.5 rounded-full active:scale-95">
+                     <Text className="text-white text-[10px] font-black tracking-widest uppercase">🎁 Claim</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View className="flex-row items-center justify-center gap-2 mt-3 flex-wrap">
                 <Leaderboard />
                 <TouchableOpacity onPress={signOut} className="mt-4 bg-red-500/80 px-4 py-1.5 rounded-full active:scale-95">
                   <Text className="text-white font-bold text-xs uppercase">Sign Out</Text>
@@ -202,8 +234,8 @@ function Dashboard() {
             <Text className="text-white font-black text-2xl mb-2">?? INVITE & EARN</Text>
             <Text className="text-white/80 text-sm mb-4 leading-tight">Share your code to get <Text className="font-bold text-yellow-400">10,000 Coins</Text> per friend! They also get 5,000 bonus Coins.</Text>
             <View className="bg-black/30 p-4 rounded-2xl flex-row justify-between items-center border border-white/10">
-              <Text className="text-white font-mono text-2xl tracking-[0.2em] font-black">{String(profile?.friend_id || 0).padStart(8, '0')}</Text>
-              <TouchableOpacity onPress={() => { Clipboard.setStringAsync(String(profile?.friend_id || 0).padStart(8, '0')); Alert.alert('Copied!', 'Referral code copied to clipboard!'); }} className="bg-white/20 px-4 py-2 rounded-xl">
+              <Text className="text-white font-mono text-2xl tracking-[0.2em] font-black">{String(profile?.friend_id || 0).padStart(7, '0')}</Text>
+              <TouchableOpacity onPress={() => { Clipboard.setStringAsync(String(profile?.friend_id || 0).padStart(7, '0')); Alert.alert('Copied!', 'Referral code copied to clipboard!'); }} className="bg-white/20 px-4 py-2 rounded-xl">
                 <Text className="text-white font-bold text-xs uppercase tracking-widest">Copy</Text>
               </TouchableOpacity>
             </View>
@@ -222,38 +254,11 @@ function Dashboard() {
             </View>
           </View>
 
-          {gameMode === 'PVP' && (
-            <View>
-              <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2 mt-4">Room Size</Text>
-              <View className="flex-row gap-3">
-                <TouchableOpacity onPress={() => setCapacity(2)} className={`flex-1 py-3 rounded-xl border ${capacity === 2 ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
-                  <Text className={`text-center font-black text-xs ${capacity === 2 ? 'text-indigo-900' : 'text-white/60'}`}>2 PLAYERS</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setCapacity(3)} className={`flex-1 py-3 rounded-xl border ${capacity === 3 ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
-                  <Text className={`text-center font-black text-xs ${capacity === 3 ? 'text-indigo-900' : 'text-white/60'}`}>3 PLAYERS</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <View>
-            <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2 mt-4">Wager / Bet Amount</Text>
-            <View className="flex-row flex-wrap justify-between gap-2">
-              {[0, 10, 50, 100].map(amount => (
-                <TouchableOpacity key={amount} onPress={() => setBetAmount(amount)} className={`flex-1 py-2 rounded-xl border ${betAmount === amount ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
-                  <Text className={`text-center font-black text-xs ${betAmount === amount ? 'text-indigo-900' : 'text-white/60'}`}>
-                    {amount === 0 ? 'FREE' : `💰${amount}`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           <TouchableOpacity onPress={createRoom} disabled={loading || findingMatch} className="w-full bg-yellow-400 py-4 rounded-2xl shadow-xl mt-6 active:scale-95 disabled:opacity-50">
-            <Text className="text-indigo-900 font-black text-center text-lg uppercase tracking-wider">{loading ? 'Creating...' : 'Create New Room'}</Text>
+            <Text className="text-indigo-900 font-black text-center text-lg uppercase tracking-wider">{loading ? 'Creating...' : (gameMode === 'PVP' ? 'Create Private Room (1 🎟️)' : 'Start Match')}</Text>
           </TouchableOpacity>
 
-          {gameMode === 'PVP' && capacity === 2 && (
+          {gameMode === 'PVP' && (
             <>
               
               
@@ -346,7 +351,8 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <StatusBar style="light" />
+      <StatusBar hidden={true} />
+      <NavigationBar hidden={true} />
       <Main />
       <BackgroundMusic />
     </AuthProvider>

@@ -1,17 +1,56 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: '274890853737-3jtpgphnqqljembf1odvoav9vnapo5af.apps.googleusercontent.com', // RECOVERED FROM PREVIOUS CHAT
+  scopes: ['profile', 'email'],
+});
 
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  const signInWithGoogle = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      
+      // The latest Google Sign-in library returns a 'type' field instead of throwing an error on cancel
+      if (userInfo && (userInfo as any).type === 'cancelled') {
+        return; // User cancelled the login flow, silently exit
+      }
+      
+      if (userInfo && userInfo.data && userInfo.data.idToken) {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: userInfo.data.idToken,
+        });
+        if (error) throw error;
+      } else {
+        throw new Error('Authentication was cancelled or failed.');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED || error.message?.includes('cancelled')) {
+        // User cancelled login flow
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // Sign in in progress
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Google Sign-In Error', 'Play services not available');
+      } else {
+        // Only alert if it's a real error, not a cancellation
+        if (error.message !== 'Authentication was cancelled or failed.') {
+           Alert.alert('Google Sign-In Error', error.message || 'Authentication failed');
+        }
+      }
+    }
+  };
+
   const handleAuth = async () => {
-    if (!email || !password || (!isLogin && !username)) {
+    if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -23,29 +62,12 @@ export default function Auth() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.auth.signUp({ 
+        const { error } = await supabase.auth.signUp({ 
           email, 
-          password,
-          options: { data: { username } }
+          password
         });
         if (error) throw error;
         
-        if (referralCode.trim() && data?.user?.id) {
-          try {
-            await new Promise(r => setTimeout(r, 2000));
-            const refId = parseInt(referralCode.trim(), 10);
-            if (!isNaN(refId)) {
-              const { data: referrers } = await supabase.from('profiles').select('id').eq('friend_id', refId).limit(1);
-              if (referrers && referrers.length > 0) {
-                await supabase.rpc('update_profile_coins', { user_id: referrers[0].id, amount: 10000 });
-                await supabase.rpc('update_profile_coins', { user_id: data.user.id, amount: 5000 });
-              }
-            }
-          } catch(e) {
-            console.log("Referral error:", e);
-          }
-        }
-
         Alert.alert('Success', 'Account created! You can now log in.');
         setIsLogin(true);
       }
@@ -61,34 +83,6 @@ export default function Auth() {
       <Text className="text-3xl font-black text-white text-center mb-6">
         {isLogin ? 'WELCOME BACK' : 'JOIN THE GAME'}
       </Text>
-      
-      
-      {!isLogin && (
-        <View className="mb-4">
-          <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Referral Code (Optional)</Text>
-          <TextInput
-            value={referralCode}
-            onChangeText={setReferralCode}
-            className="w-full bg-white/20 border border-white/30 rounded-2xl p-4 text-white font-bold"
-            placeholder="00000001"
-            placeholderTextColor="rgba(255,255,255,0.4)"
-            keyboardType="number-pad"
-          />
-        </View>
-      )}
-
-      {!isLogin && (
-        <View className="mb-4">
-          <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Username</Text>
-          <TextInput
-            value={username}
-            onChangeText={setUsername}
-            className="w-full bg-white/20 border border-white/30 rounded-2xl p-4 text-white font-bold"
-            placeholder="CoolPlayer99"
-            placeholderTextColor="rgba(255,255,255,0.4)"
-          />
-        </View>
-      )}
 
       <View className="mb-4">
         <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Email</Text>
@@ -123,6 +117,21 @@ export default function Auth() {
         <Text className="text-indigo-900 font-black text-lg uppercase tracking-wider">
           {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
         </Text>
+      </TouchableOpacity>
+
+      <View className="flex-row items-center my-6">
+        <View className="flex-1 h-px bg-white/20" />
+        <Text className="text-white/50 font-bold px-4">OR</Text>
+        <View className="flex-1 h-px bg-white/20" />
+      </View>
+
+      <TouchableOpacity 
+        onPress={signInWithGoogle} 
+        disabled={loading}
+        className="w-full bg-white py-4 rounded-2xl shadow-xl flex-row justify-center items-center gap-3 active:scale-95"
+      >
+        <Text className="text-indigo-900 font-black text-xl">G</Text>
+        <Text className="text-indigo-900 font-black text-lg uppercase tracking-wider">Sign in with Google</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => setIsLogin(!isLogin)} className="mt-6">

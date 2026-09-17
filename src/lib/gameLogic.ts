@@ -15,10 +15,9 @@ export function processAction(room: Room, playerId: string, action: UserAction):
           if (isBot) {
             return {
               status: 'team_selection',
-              overs_limit: action.oversLimit,
-              wickets_limit: action.wicketsLimit,
+              wickets_limit: room.wickets_limit,
               p2_team: 'Australia',
-              p2_players: ['David Warner', 'Steve Smith', 'Pat Cummins', 'Mitchell Starc', 'Glenn Maxwell', 'Travis Head', 'Mitchell Marsh', 'Adam Zampa', 'Josh Hazlewood', 'Josh Inglis', 'Marnus Labuschagne'].slice(0, action.wicketsLimit + 1),
+              p2_players: ['David Warner', 'Steve Smith', 'Pat Cummins', 'Mitchell Starc', 'Glenn Maxwell', 'Travis Head', 'Mitchell Marsh', 'Adam Zampa', 'Josh Hazlewood', 'Josh Inglis', 'Marnus Labuschagne'].slice(0, (room.wickets_limit || 3) + 1),
               p1_team: null, p1_players: [],
               p3_team: null, p3_players: [],
               p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
@@ -35,8 +34,8 @@ export function processAction(room: Room, playerId: string, action: UserAction):
               stage: 'team_toss',
               current_batsman: room.player1_id,
               current_bowler: room.player2_id,
-              overs_limit: action.oversLimit,
-              wickets_limit: action.wicketsLimit,
+              overs_limit: room.overs_limit,
+              wickets_limit: room.wickets_limit,
               p1_team: null, p1_players: [],
               p2_team: null, p2_players: [],
               p3_team: null, p3_players: [],
@@ -48,8 +47,8 @@ export function processAction(room: Room, playerId: string, action: UserAction):
         } else if (room.capacity === 3 && room.player2_id && room.player3_id) {
           return {
             status: 'team_selection',
-            overs_limit: action.oversLimit,
-            wickets_limit: action.wicketsLimit,
+            overs_limit: room.overs_limit,
+            wickets_limit: room.wickets_limit,
             p1_team: null, p1_players: [],
             p2_team: null, p2_players: [],
             p3_team: null, p3_players: [],
@@ -185,11 +184,32 @@ export function processAction(room: Room, playerId: string, action: UserAction):
         const BOT_UUID = '00000000-0000-0000-0000-000000000000';
         if (room.player2_id === BOT_UUID && room.current_batsman === BOT_UUID) {
             const botChoosesBat = Math.random() > 0.5;
-            if (botChoosesBat) {
-                return { status: 'playing', p1_throw: null, p2_throw: null, p3_throw: null };
-            } else {
-                return { status: 'playing', current_batsman: room.current_bowler, current_bowler: room.current_batsman, p1_throw: null, p2_throw: null, p3_throw: null };
+            let nextStatus = room.p1_team ? 'select_roles' : 'playing';
+            let updates: any = { status: nextStatus, p1_throw: null, p2_throw: null, p3_throw: null };
+            
+            if (!botChoosesBat) {
+                updates.current_batsman = room.current_bowler;
+                updates.current_bowler = room.current_batsman;
             }
+
+            if (nextStatus === 'select_roles') {
+                if (updates.current_batsman === BOT_UUID || (updates.current_batsman == null && room.current_batsman === BOT_UUID)) {
+                    updates.active_batsman_name = room.p2_players![room.p2_current_player_index || 0];
+                }
+                if (updates.current_bowler === BOT_UUID || (updates.current_bowler == null && room.current_bowler === BOT_UUID)) {
+                    updates.active_bowler_name = room.p2_players![Math.floor(Math.random() * room.p2_players!.length)];
+                }
+                
+                // If bot handles both roles (e.g. playing itself), though impossible in our flow
+                // Or if we only need one role from human, we just transition to the appropriate status
+                const newBatsman = updates.active_batsman_name !== undefined ? updates.active_batsman_name : room.active_batsman_name;
+                const newBowler = updates.active_bowler_name !== undefined ? updates.active_bowler_name : room.active_bowler_name;
+                if (newBatsman && !newBowler) updates.status = 'select_bowler';
+                if (!newBatsman && newBowler) updates.status = 'select_batsman';
+                if (newBatsman && newBowler) updates.status = 'playing';
+            }
+            
+            return updates;
         }
         if (room.stage === 'team_toss') {
             return { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null };
@@ -200,14 +220,61 @@ export function processAction(room: Room, playerId: string, action: UserAction):
 
     case 'toss_decision':
         if (action.type === 'TOSS_DECISION' && playerId === room.current_batsman) {
+            const BOT_UUID = '00000000-0000-0000-0000-000000000000';
+            let nextStatus = room.p1_team ? 'select_roles' : 'playing';
+            let updates: any = { status: nextStatus };
+            
             if (action.choice === 'bowl') {
                 const tossWinner = room.current_batsman;
                 const tossLoser = room.current_bowler;
-                return { status: 'playing', current_batsman: tossLoser, current_bowler: tossWinner };
+                updates.current_batsman = tossLoser;
+                updates.current_bowler = tossWinner;
             }
-            return { status: 'playing' };
+            
+            if (nextStatus === 'select_roles' && room.player2_id === BOT_UUID) {
+                if (updates.current_batsman === BOT_UUID || (updates.current_batsman == null && room.current_batsman === BOT_UUID)) {
+                    updates.active_batsman_name = room.p2_players![room.p2_current_player_index || 0];
+                }
+                if (updates.current_bowler === BOT_UUID || (updates.current_bowler == null && room.current_bowler === BOT_UUID)) {
+                    updates.active_bowler_name = room.p2_players![Math.floor(Math.random() * room.p2_players!.length)];
+                }
+                
+                const newBatsman = updates.active_batsman_name !== undefined ? updates.active_batsman_name : room.active_batsman_name;
+                const newBowler = updates.active_bowler_name !== undefined ? updates.active_bowler_name : room.active_bowler_name;
+                if (newBatsman && !newBowler) updates.status = 'select_bowler';
+                if (!newBatsman && newBowler) updates.status = 'select_batsman';
+                if (newBatsman && newBowler) updates.status = 'playing';
+            }
+            
+            return updates;
         }
         break;
+
+    case 'select_roles':
+    case 'select_batsman':
+    case 'select_bowler':
+      if (action.type === 'SELECT_ROLE') {
+         let updates: any = {};
+         if (action.role === 'batsman' && playerId === room.current_batsman) {
+             updates.active_batsman_name = action.playerName;
+         } else if (action.role === 'bowler' && playerId === room.current_bowler) {
+             updates.active_bowler_name = action.playerName;
+         }
+         
+         const newBatsman = updates.active_batsman_name !== undefined ? updates.active_batsman_name : room.active_batsman_name;
+         const newBowler = updates.active_bowler_name !== undefined ? updates.active_bowler_name : room.active_bowler_name;
+         
+         if (newBatsman && newBowler) {
+             updates.status = 'playing';
+         } else if (newBatsman && !newBowler) {
+             updates.status = 'select_bowler';
+         } else if (!newBatsman && newBowler) {
+             updates.status = 'select_batsman';
+         }
+         
+         return updates;
+      }
+      break;
 
     // Actual Gameplay Match
     case 'playing':
@@ -225,10 +292,20 @@ export function processAction(room: Room, playerId: string, action: UserAction):
         const boT = room.current_bowler === room.player1_id ? p1T : (room.current_bowler === room.player2_id ? p2T : p3T);
 
         if (bT !== null && boT !== null) {
-          // Increment balls faced
-          if (room.current_batsman === room.player1_id) updates.p1_balls_faced = (room.p1_balls_faced || 0) + 1;
-          else if (room.current_batsman === room.player2_id) updates.p2_balls_faced = (room.p2_balls_faced || 0) + 1;
-          else updates.p3_balls_faced = (room.p3_balls_faced || 0) + 1;
+          const isNoBall = boT === 0 && bT > 0;
+          const isDeadBall = boT === 0 && bT === 0;
+          
+          // Increment balls faced (unless it's a no ball or dead ball)
+          if (!isNoBall && !isDeadBall) {
+            if (room.current_batsman === room.player1_id) updates.p1_balls_faced = (room.p1_balls_faced || 0) + 1;
+            else if (room.current_batsman === room.player2_id) updates.p2_balls_faced = (room.p2_balls_faced || 0) + 1;
+            else updates.p3_balls_faced = (room.p3_balls_faced || 0) + 1;
+          } else {
+            // keep it same in updates so we can read it easily
+            if (room.current_batsman === room.player1_id) updates.p1_balls_faced = (room.p1_balls_faced || 0);
+            else if (room.current_batsman === room.player2_id) updates.p2_balls_faced = (room.p2_balls_faced || 0);
+            else updates.p3_balls_faced = (room.p3_balls_faced || 0);
+          }
 
           const ballsFaced = (room.current_batsman === room.player1_id ? updates.p1_balls_faced : (room.current_batsman === room.player2_id ? updates.p2_balls_faced : updates.p3_balls_faced)) || 0;
           const oversLimitBalls = room.overs_limit ? room.overs_limit * 6 : null;
@@ -262,6 +339,8 @@ export function processAction(room: Room, playerId: string, action: UserAction):
                 const temp = room.current_batsman;
                 updates.current_batsman = room.current_bowler;
                 updates.current_bowler = temp;
+                updates.active_batsman_name = null;
+                updates.active_bowler_name = null;
                 updates.status = 'reveal';
               } else {
                 // Match End
@@ -297,9 +376,13 @@ export function processAction(room: Room, playerId: string, action: UserAction):
             }
           } else {
             // Scoring
-            if (room.current_batsman === room.player1_id) updates.p1_score = room.p1_score + bT;
-            else if (room.current_batsman === room.player2_id) updates.p2_score = room.p2_score + bT;
-            else updates.p3_score = room.p3_score + bT;
+            const isNoBall = boT === 0 && bT > 0;
+            const isDeadBall = boT === 0 && bT === 0;
+            const runScored = isDeadBall ? 0 : (isNoBall ? bT + 1 : bT);
+            
+            if (room.current_batsman === room.player1_id) updates.p1_score = room.p1_score + runScored;
+            else if (room.current_batsman === room.player2_id) updates.p2_score = room.p2_score + runScored;
+            else updates.p3_score = room.p3_score + runScored;
 
             const newScore = (room.current_batsman === room.player1_id ? updates.p1_score : (room.current_batsman === room.player2_id ? updates.p2_score : updates.p3_score)) || 0;
             
@@ -329,12 +412,14 @@ export function processAction(room: Room, playerId: string, action: UserAction):
               if (oversLimitBalls && ballsFaced >= oversLimitBalls) {
                  // Innings ends!
                  if (room.innings === 1) {
-                   updates.target = newScore + 1;
-                   updates.innings = 2;
-                   const temp = room.current_batsman;
-                   updates.current_batsman = room.current_bowler;
-                   updates.current_bowler = temp;
-                   updates.status = 'reveal';
+                     updates.target = newScore + 1;
+                     updates.innings = 2;
+                     const temp = room.current_batsman;
+                     updates.current_batsman = room.current_bowler;
+                     updates.current_bowler = temp;
+                     updates.active_batsman_name = null;
+                     updates.active_bowler_name = null;
+                     updates.status = 'reveal';
                  } else {
                    // Team lost because overs ran out before chasing!
                    const matchWinner = room.current_bowler;
@@ -370,7 +455,38 @@ export function processAction(room: Room, playerId: string, action: UserAction):
 
     case 'reveal':
       if (action.type === 'CONTINUE') {
-        return { status: 'playing', p1_throw: null, p2_throw: null, p3_throw: null };
+        const BOT_UUID = '00000000-0000-0000-0000-000000000000';
+        let nextStatus = 'playing';
+        let updates: any = { p1_throw: null, p2_throw: null, p3_throw: null };
+        
+        if (room.p1_team) {
+            if (room.active_batsman_name === null && room.active_bowler_name === null) {
+                nextStatus = 'select_roles';
+            } else if (room.active_batsman_name === null) {
+                nextStatus = 'select_batsman';
+            } else if (room.active_bowler_name === null) {
+                nextStatus = 'select_bowler';
+            }
+        }
+        
+        updates.status = nextStatus;
+
+        if (room.player2_id === BOT_UUID && nextStatus !== 'playing') {
+            if ((nextStatus === 'select_roles' || nextStatus === 'select_batsman') && room.current_batsman === BOT_UUID) {
+                updates.active_batsman_name = room.p2_players![room.p2_current_player_index || 0];
+            }
+            if ((nextStatus === 'select_roles' || nextStatus === 'select_bowler') && room.current_bowler === BOT_UUID) {
+                updates.active_bowler_name = room.p2_players![Math.floor(Math.random() * room.p2_players!.length)];
+            }
+            
+            const newBatsman = updates.active_batsman_name !== undefined ? updates.active_batsman_name : room.active_batsman_name;
+            const newBowler = updates.active_bowler_name !== undefined ? updates.active_bowler_name : room.active_bowler_name;
+            if (newBatsman && !newBowler) updates.status = 'select_bowler';
+            if (!newBatsman && newBowler) updates.status = 'select_batsman';
+            if (newBatsman && newBowler) updates.status = 'playing';
+        }
+        
+        return updates;
       }
       break;
 

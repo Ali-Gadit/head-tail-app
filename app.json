@@ -3,7 +3,7 @@
     "name": "head-tail-app",
     "slug": "head-tail-app",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -29,7 +29,9 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin",
+      "expo-status-bar"
     ]
   }
 }

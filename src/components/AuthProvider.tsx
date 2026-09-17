@@ -11,6 +11,8 @@ type Profile = {
   rp?: number;
   rank_tier?: string;
   last_daily_reward: string | null;
+  private_room_tokens?: number;
+  premium_currency?: number;
 };
 
 type AuthContextType = {
@@ -18,6 +20,7 @@ type AuthContextType = {
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   signOut: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -46,7 +50,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const { data: userObj } = await supabase.auth.getUser();
           if (userObj.user) {
             const baseUsername = userObj.user.user_metadata?.username || userObj.user.email?.split('@')[0] || 'Player';
-            const friendId = `${baseUsername.toUpperCase()}#${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+            
+            // Get count to generate sequential ID
+            const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+            const nextId = (count || 0) + 1;
+            const friendId = nextId.toString().padStart(7, '0');
             
             const { data: newProfile, error: insertError } = await supabase
               .from('profiles')
@@ -70,6 +78,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return null;
       }
       
+      if (data && String(data.friend_id).includes('#')) {
+        const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+        const newId = ((count || 0) + 1).toString().padStart(7, '0');
+        await supabase.from('profiles').update({ friend_id: newId, is_online: true }).eq('id', userId);
+        data.friend_id = newId;
+        return data;
+      }
+      
       await supabase.from('profiles').update({ is_online: true }).eq('id', userId);
       return data;
     } catch (err) {
@@ -84,6 +100,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user && mounted) {
         setUser(session.user);
+        try {
+          const { api } = await import('../lib/api');
+          await api.processDailyLogin(session.user.id);
+        } catch (e) { console.error(e); }
         const p = await fetchProfile(session.user.id);
         if (mounted) setProfile(p);
       }
@@ -111,15 +131,49 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  useEffect(() => {
+    let profileSub: any = null;
+    let mounted = true;
+    if (user) {
+      profileSub = supabase
+        .channel(`public:profiles:${user.id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, (payload) => {
+          if (mounted) setProfile(payload.new as Profile);
+        })
+        .subscribe();
+    }
+
+    return () => {
+      mounted = false;
+      if (profileSub) supabase.removeChannel(profileSub);
+    };
+  }, [user?.id]);
+
   const signOut = async () => {
     if (user) {
       await supabase.from('profiles').update({ is_online: false }).eq('id', user.id);
     }
+    
+    // Clear Google Sign-In session so the account picker shows up next time
+    try {
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      await GoogleSignin.signOut();
+    } catch (error) {
+      // Ignore error if the user didn't log in with Google or if it's unconfigured
+    }
+
     await supabase.auth.signOut();
   };
 
+  const refreshProfile = async () => {
+    if (user) {
+      const p = await fetchProfile(user.id);
+      setProfile(p);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
