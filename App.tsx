@@ -116,6 +116,13 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     }
   };
 
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [showInviteEarn, setShowInviteEarn] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
+
   const createRoom = async () => {
     setLoading(true);
     try {
@@ -130,7 +137,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setNotification({ title: 'Error', message: err.message });
     } finally {
       setLoading(false);
     }
@@ -150,17 +157,11 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setNotification({ title: 'Error', message: err.message });
     } finally {
       setLoading(false);
     }
   };
-
-  const [showDailyReward, setShowDailyReward] = useState(false);
-  const [showInviteEarn, setShowInviteEarn] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showFriends, setShowFriends] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
 
   if (roomId && room && user) {
     return (
@@ -201,6 +202,23 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
             <TouchableOpacity onPress={() => setShowSettings(false)} className="bg-white/20 px-6 py-2 rounded-full active:scale-95">
               <Text className="text-white font-bold">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Global Notification Modal */}
+      <Modal visible={!!notification} animationType="fade" transparent onRequestClose={() => setNotification(null)}>
+        <View className="flex-1 bg-black/80 justify-center items-center p-2">
+          <View className="bg-indigo-900 border border-white/20 p-6 rounded-3xl w-[80%] max-w-sm items-center shadow-2xl">
+            <Text className="text-4xl mb-4">⚠️</Text>
+            <Text className="text-white font-black text-xl mb-2 text-center">{notification?.title}</Text>
+            <Text className="text-white/80 font-bold text-center mb-6">{notification?.message}</Text>
+            <TouchableOpacity 
+              onPress={() => setNotification(null)}
+              className="bg-red-500 px-8 py-3 rounded-xl shadow-lg active:scale-95"
+            >
+              <Text className="text-white font-black uppercase tracking-wider">OK</Text>
             </TouchableOpacity>
           </View>
         </View>

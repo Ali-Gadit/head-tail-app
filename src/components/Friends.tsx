@@ -18,6 +18,7 @@ export default function Friends({ visible, onClose }: { visible: boolean, onClos
   const [searchResult, setSearchResult] = useState<FriendProfile | null>(null);
   const [searchError, setSearchError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState<{title: string, message: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     if (!profile?.id || !visible) return;
@@ -129,9 +130,10 @@ export default function Friends({ visible, onClose }: { visible: boolean, onClos
       .insert({ sender_id: profile.id, receiver_id: receiverId });
       
     if (error) {
-      Alert.alert('Error', error.message);
+      // Typically means unique constraint violation (already sent or already friends)
+      setNotification({ title: 'Notice', message: 'Friend request already sent or pending!', type: 'error' });
     } else {
-      Alert.alert('Success', 'Friend request sent!');
+      setNotification({ title: 'Success', message: 'Friend request sent!', type: 'success' });
       setSearchResult(null);
       setSearchQuery('');
     }
@@ -142,7 +144,7 @@ export default function Friends({ visible, onClose }: { visible: boolean, onClos
       .from('friendships')
       .update({ status: 'accepted' })
       .eq('id', requestId);
-    if (error) Alert.alert('Error', error.message);
+    if (error) setNotification({ title: 'Error', message: error.message, type: 'error' });
   };
 
   const declineRequest = async (requestId: string) => {
@@ -150,13 +152,33 @@ export default function Friends({ visible, onClose }: { visible: boolean, onClos
       .from('friendships')
       .delete()
       .eq('id', requestId);
-    if (error) Alert.alert('Error', error.message);
+    if (error) setNotification({ title: 'Error', message: error.message, type: 'error' });
   };
+
+  const isAlreadyFriend = searchResult && friends.some(f => f.id === searchResult.id);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View className="flex-1 bg-black/80 justify-center items-center p-2">
-        <View className="bg-indigo-950 rounded-[2rem] p-6 border border-white/20 w-full max-w-2xl h-[90%] shadow-2xl">
+        <View className="bg-indigo-950 rounded-[2rem] p-6 border border-white/20 w-full max-w-2xl h-[90%] shadow-2xl relative">
+          
+          {/* Custom Notification Overlay */}
+          {notification && (
+            <View className="absolute inset-0 z-50 items-center justify-center bg-black/60 rounded-[2rem]">
+              <View className="bg-indigo-900 border border-white/20 p-6 rounded-3xl w-[80%] max-w-sm items-center shadow-2xl">
+                <Text className="text-4xl mb-4">{notification.type === 'success' ? '✨' : '⚠️'}</Text>
+                <Text className="text-white font-black text-xl mb-2 text-center">{notification.title}</Text>
+                <Text className="text-white/80 font-bold text-center mb-6">{notification.message}</Text>
+                <TouchableOpacity 
+                  onPress={() => setNotification(null)}
+                  className={`px-8 py-3 rounded-xl shadow-lg active:scale-95 ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}
+                >
+                  <Text className="text-white font-black uppercase tracking-wider">OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <View className="flex-row justify-between items-center mb-4">
             <View className="flex-row items-center gap-3">
               <Text className="text-2xl font-black text-white tracking-widest uppercase">Friends</Text>
@@ -218,9 +240,16 @@ export default function Friends({ visible, onClose }: { visible: boolean, onClos
                       <Text className="text-white font-bold text-lg">{searchResult.username}</Text>
                       <Text className="text-xs text-white/70 font-mono">{String(searchResult.friend_id).padStart(7, '0')}</Text>
                     </View>
-                <TouchableOpacity onPress={() => sendRequest(searchResult.id)} className="bg-indigo-500 px-4 py-2 rounded-lg shadow-lg active:scale-95 border border-indigo-400">
-                  <Text className="text-white font-bold text-sm uppercase">Add Friend</Text>
-                </TouchableOpacity>
+                
+                {isAlreadyFriend ? (
+                  <View className="bg-white/10 px-4 py-2 rounded-lg border border-white/20">
+                    <Text className="text-white/50 font-bold text-sm uppercase">Friends</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => sendRequest(searchResult.id)} className="bg-indigo-500 px-4 py-2 rounded-lg shadow-lg active:scale-95 border border-indigo-400">
+                    <Text className="text-white font-bold text-sm uppercase">Add Friend</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
