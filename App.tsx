@@ -158,6 +158,7 @@ function Dashboard() {
 
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showInviteEarn, setShowInviteEarn] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   if (roomId && room && user) {
     return (
@@ -175,60 +176,85 @@ function Dashboard() {
     <SafeAreaView className="flex-1 bg-indigo-950">
       <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
       <CoinShop visible={showCoinShop} onClose={() => setShowCoinShop(false)} />
+      <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
       <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
-      <ScrollView contentContainerStyle={{ padding: 24, flexGrow: 1, justifyContent: 'center' }}>
+      
+      {/* Absolute HUD Layer */}
+      {profile && (
+        <View className="absolute top-2 left-4 right-4 z-50 flex-row justify-between items-start" pointerEvents="box-none">
+          {/* Left Column: Profile, Currencies, and Menu */}
+          <View className="flex-col gap-3 items-start pointer-events-auto">
+            
+            {/* Profile & Currencies Row */}
+            <View className="flex-row gap-4 items-start">
+              {/* Profile Card */}
+              <View className="flex-col">
+                <View className="flex-row items-center bg-black/40 rounded-full pr-4 p-1 border border-white/10">
+                  <View className="w-10 h-10 bg-indigo-500 rounded-full items-center justify-center border-2 border-indigo-300">
+                    <Text className="text-xl">👤</Text>
+                  </View>
+                  <View className="ml-3">
+                    <Text className="text-white font-bold">{profile.username}</Text>
+                    <Text className="text-white/50 text-[10px] font-mono">ID: {String(profile?.friend_id || 0).padStart(7, '0')}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={signOut} className="mt-2 ml-2 self-start bg-red-500/80 px-3 py-1 rounded-full active:scale-95">
+                  <Text className="text-white font-bold text-[10px] uppercase">Sign Out</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Currencies */}
+              <View className="flex-row items-center gap-2 mt-2">
+                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                  <Text className="text-yellow-400 font-bold text-xs">🪙 {profile.coins || 0}</Text>
+                </View>
+                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                  <Text className="text-cyan-400 font-bold text-xs">💎 {profile.premium_currency || 0}</Text>
+                </View>
+                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
+                  <Text className="text-purple-400 font-bold text-xs">🎟️ {profile.private_room_tokens || 0}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Vertical Menu */}
+            <View className="flex-col gap-2 mt-3 ml-2">
+              <TouchableOpacity onPress={() => setShowCoinShop(true)} className="flex-row items-center gap-2 active:opacity-50">
+                <View className="bg-blue-500 w-8 h-8 rounded-full items-center justify-center shadow-md border border-blue-400">
+                  <Text className="text-sm drop-shadow-md">🛒</Text>
+                </View>
+                <Text className="text-blue-300 font-black uppercase tracking-widest text-[10px]">Store</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setShowDailyReward(true)} className="flex-row items-center gap-2 active:opacity-50">
+                <View className="bg-green-500 w-8 h-8 rounded-full items-center justify-center shadow-md border border-green-400">
+                  <Text className="text-sm drop-shadow-md">🎁</Text>
+                </View>
+                <Text className="text-green-300 font-black uppercase tracking-widest text-[10px]">Daily Rewards</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setShowInviteEarn(true)} className="flex-row items-center gap-2 active:opacity-50">
+                <View className="bg-purple-500 w-8 h-8 rounded-full items-center justify-center shadow-md border border-purple-400">
+                  <Text className="text-sm drop-shadow-md">💌</Text>
+                </View>
+                <Text className="text-purple-300 font-black uppercase tracking-widest text-[10px]">Invite and Earn</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setShowLeaderboard(true)} className="flex-row items-center gap-2 active:opacity-50">
+                <View className="bg-yellow-400 w-8 h-8 rounded-full items-center justify-center shadow-md border border-yellow-300">
+                  <Text className="text-sm drop-shadow-md">🏆</Text>
+                </View>
+                <Text className="text-yellow-400 font-black uppercase tracking-widest text-[10px]">Leaderboard</Text>
+              </TouchableOpacity>
+            </View>
+            
+          </View>
+        </View>
+      )}
+
+      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 100, flexGrow: 1, justifyContent: 'center' }}>
         <View className="items-center mb-8">
           <Text className="text-4xl font-black text-white italic tracking-tighter">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
-          {profile && (
-              <View className="w-full flex-row justify-between mt-6 px-2">
-                
-                {/* Top Left: Profile */}
-                <View className="flex-col">
-                  <View className="flex-row items-center bg-black/40 rounded-full pr-4 p-1 border border-white/10">
-                    <View className="w-10 h-10 bg-indigo-500 rounded-full items-center justify-center border-2 border-indigo-300">
-                      <Text className="text-xl">👤</Text>
-                    </View>
-                    <View className="ml-3">
-                      <Text className="text-white font-bold">{profile.username}</Text>
-                      <Text className="text-white/50 text-[10px] font-mono">ID: {String(profile?.friend_id || 0).padStart(7, '0')}</Text>
-                    </View>
-                  </View>
-                  
-                  <TouchableOpacity onPress={signOut} className="mt-3 ml-2 self-start bg-red-500/80 px-3 py-1 rounded-full active:scale-95">
-                    <Text className="text-white font-bold text-[10px] uppercase">Sign Out</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Top Right: Currencies & Icons */}
-                <View className="items-end gap-3">
-                  <View className="flex-row items-center gap-2">
-                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                      <Text className="text-yellow-400 font-bold text-xs">🪙 {profile.coins || 0}</Text>
-                    </View>
-                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                      <Text className="text-cyan-400 font-bold text-xs">💎 {profile.premium_currency || 0}</Text>
-                    </View>
-                    <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                      <Text className="text-purple-400 font-bold text-xs">🎟️ {profile.private_room_tokens || 0}</Text>
-                    </View>
-                  </View>
-                  
-                  <View className="flex-row items-center gap-3 pr-1">
-                    <TouchableOpacity onPress={() => setShowInviteEarn(true)} className="bg-purple-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
-                       <Text className="text-white text-lg">💌</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowDailyReward(true)} className="bg-green-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
-                       <Text className="text-white text-lg">🎁</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-blue-500 w-10 h-10 rounded-full items-center justify-center shadow-lg active:scale-95">
-                       <Text className="text-white text-lg">🛒</Text>
-                    </TouchableOpacity>
-                    <Leaderboard iconOnly={true} />
-                  </View>
-                </View>
-
-              </View>
-          )}
         </View>
 
           <View className="bg-white/10 p-6 sm:p-8 rounded-[2rem] border border-white/20 shadow-2xl space-y-6">

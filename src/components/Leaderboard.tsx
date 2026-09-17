@@ -8,13 +8,12 @@ type Player = {
   coins: number;
 };
 
-export default function Leaderboard({ iconOnly }: { iconOnly?: boolean }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function Leaderboard({ visible, onClose }: { visible: boolean, onClose: () => void }) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!visible) return;
 
     const fetchLeaderboard = async () => {
       setLoading(true);
@@ -31,23 +30,14 @@ export default function Leaderboard({ iconOnly }: { iconOnly?: boolean }) {
     };
 
     fetchLeaderboard();
-  }, [isOpen]);
+  }, [visible]);
 
   return (
-    <>
-      <TouchableOpacity 
-        onPress={() => setIsOpen(true)}
-        className={`flex-row items-center justify-center bg-yellow-400 rounded-full shadow-lg active:scale-95 ${iconOnly ? 'w-10 h-10' : 'gap-2 px-4 py-2 mt-4'}`}
-      >
-        <Text className="text-indigo-900 font-black text-lg">🏆</Text>
-        {!iconOnly && <Text className="text-indigo-900 font-black text-xs uppercase tracking-wider">Leaderboard</Text>}
-      </TouchableOpacity>
-
-      <Modal
-        visible={isOpen}
+    <Modal
+      visible={visible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setIsOpen(false)}
+        onRequestClose={onClose}
       >
         <View className="flex-1 bg-black/80 justify-end">
           <View className="bg-indigo-950 rounded-t-[2rem] border-t border-white/20 h-[80%]">
@@ -57,7 +47,7 @@ export default function Leaderboard({ iconOnly }: { iconOnly?: boolean }) {
                 <Text className="text-yellow-400">🏆</Text> Leaderboard
               </Text>
               <TouchableOpacity 
-                onPress={() => setIsOpen(false)}
+                onPress={onClose}
                 className="w-8 h-8 items-center justify-center bg-white/10 rounded-full"
               >
                 <Text className="text-white font-bold">✕</Text>
@@ -108,6 +98,5 @@ export default function Leaderboard({ iconOnly }: { iconOnly?: boolean }) {
           </View>
         </View>
       </Modal>
-    </>
   );
 }
