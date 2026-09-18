@@ -62,11 +62,17 @@ async function handlePayout(updates: any, finalRoom: any) {
 
 export const api = {
   buyPrivateRoomToken: async (userId: string) => {
-    const { data: profile } = await supabase.from('profiles').select('premium_currency').eq('id', userId).single();
-    if (!profile || profile.premium_currency < 50) {
-      throw new Error('Not enough diamonds (50💎 required)');
+    const { data: profile } = await supabase.from('profiles').select('premium_currency, private_room_tokens').eq('id', userId).single();
+    if (!profile || profile.premium_currency < 10) {
+      throw new Error('Not enough diamonds (10💎 required)');
     }
-    const { error } = await supabase.rpc('buy_private_room_token', { uid: userId });
+    
+    // We update manually to override the old RPC which hardcoded the price to 50
+    const { error } = await supabase.from('profiles').update({
+      premium_currency: profile.premium_currency - 10,
+      private_room_tokens: (profile.private_room_tokens || 0) + 1
+    }).eq('id', userId);
+
     if (error) throw error;
     return true;
   },
@@ -450,10 +456,20 @@ addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer')
     return data;
   },
 
-  claimDailyReward: async (userId: string, amount: number = 100) => {
+  claimDailyReward: async (userId: string, amount: number = 100, tokens: number = 0) => {
     const { data, error } = await supabase.rpc('claim_daily_reward', { user_id: userId, reward_amount: amount });
     if (error) throw error;
     if (data.error) throw new Error(data.error);
+
+    // If there are bonus tokens, update the profile manually
+    if (tokens > 0) {
+      const { data: profile } = await supabase.from('profiles').select('private_room_tokens').eq('id', userId).single();
+      if (profile) {
+        await supabase.from('profiles').update({
+          private_room_tokens: (profile.private_room_tokens || 0) + tokens
+        }).eq('id', userId);
+      }
+    }
     return data;
   },
 

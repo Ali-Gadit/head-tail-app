@@ -10,14 +10,18 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
   const [loading, setLoading] = useState(false);
   const [canClaim, setCanClaim] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
 
   const [timeLeftStr, setTimeLeftStr] = useState('');
 
   useEffect(() => {
+    console.log("DailyRewardModal: useEffect triggered. visible=", visible);
     let interval: ReturnType<typeof setInterval>;
 
     if (visible && user) {
+      console.log("DailyRewardModal: calling checkStatus");
       checkStatus().then((nextUnlockTime) => {
+        console.log("DailyRewardModal: checkStatus resolved with", nextUnlockTime);
         if (nextUnlockTime) {
           interval = setInterval(() => {
             const now = new Date().getTime();
@@ -35,15 +39,19 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
             }
           }, 1000);
         }
+      }).catch(err => {
+        console.log("DailyRewardModal: checkStatus ERROR:", err);
       });
     }
 
     return () => {
+      console.log("DailyRewardModal: cleaning up interval");
       if (interval) clearInterval(interval);
     };
   }, [visible, user, profile]);
 
   const checkStatus = async () => {
+    console.log("DailyRewardModal: inside checkStatus");
     if (!user || !profile) return null;
     
     try {
@@ -54,7 +62,9 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
       let nextUnlockTime: number | null = null;
 
       if (profile.last_daily_reward) {
-        const lastClaim = new Date(profile.last_daily_reward);
+        // Fix Android date parsing for Postgres timestamps by ensuring standard ISO format
+        const safeDateString = profile.last_daily_reward.replace(' ', 'T').split('+')[0] + 'Z';
+        const lastClaim = new Date(safeDateString);
         const now = new Date();
         
         const lastClaimMidnight = new Date(lastClaim.getFullYear(), lastClaim.getMonth(), lastClaim.getDate());
@@ -66,8 +76,8 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
           // Claimed today! Must wait until tomorrow 00:00:00
           canClaimToday = false;
           nextUnlockTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-        } else if (daysDiff >= 2) {
-          // Missed a day! Reset streak to 1
+        } else if (daysDiff >= 2 || isNaN(daysDiff)) {
+          // Missed a day (or invalid)! Reset streak to 1
           streak = 1;
           await AsyncStorage.setItem(`login_streak_${user.id}`, '1');
         }
@@ -90,11 +100,12 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
 
   const days = [1, 2, 3, 4, 5, 6, 7];
   const REWARDS = [100, 300, 500, 1000, 2000, 5000, 10000];
+  const TOKENS = [0, 0, 1, 0, 1, 0, 2];
 
   const handleClaim = async (day: number) => {
     if (day !== currentDay) return;
     if (!canClaim) {
-      Alert.alert('Not Yet', timeLeftStr ? `Come back in ${timeLeftStr}` : 'Come again tomorrow for next reward unlock');
+      setNotification({ title: 'Not Yet', message: timeLeftStr ? `Come back in ${timeLeftStr}` : 'Come again tomorrow for next reward unlock' });
       return;
     }
     if (!user) return;
@@ -102,7 +113,8 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
     setLoading(true);
     try {
       const amount = REWARDS[day - 1];
-      await api.claimDailyReward(user.id, amount);
+      const tokens = TOKENS[day - 1];
+      await api.claimDailyReward(user.id, amount, tokens);
       
       // Update streak
       const nextDay = currentDay + 1;
@@ -112,10 +124,11 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
       setCurrentDay(nextDay > 7 ? 7 : nextDay); // keep it at 7 for display after claiming day 7
       setTimeRemaining('Come again tomorrow for next reward unlock (24h remaining)');
       
-      Alert.alert('Success', `${amount} Daily reward claimed!`);
+      const tokenMsg = tokens > 0 ? ` and ${tokens} 🎟️ Token${tokens > 1 ? 's' : ''}` : '';
+      setNotification({ title: 'Success', message: `Claimed ${amount} 🪙${tokenMsg}!` });
       await refreshProfile();
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      setNotification({ title: 'Error', message: err.message });
     } finally {
       setLoading(false);
     }
@@ -124,14 +137,19 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
   return (
     <Modal visible={visible} animationType="fade" transparent={true} onRequestClose={onClose}>
       <View className="flex-1 bg-black/80 justify-center items-center p-2">
-        <View className="bg-indigo-900 w-full max-w-2xl rounded-3xl border border-indigo-400/30 shadow-2xl p-4">
+        <TouchableOpacity 
+          activeOpacity={1} 
+          className="absolute inset-0" 
+          onPress={onClose} 
+        />
+        <View className="bg-indigo-900 w-full max-w-2xl rounded-3xl border border-indigo-400/30 p-4">
           
           <View className="flex-row justify-between items-center mb-3">
             <View className="flex-row">
               <Text className="text-xl font-black text-white italic tracking-tighter">DAILY </Text>
               <Text className="text-xl font-black text-yellow-400 italic tracking-tighter">REWARDS</Text>
             </View>
-            <TouchableOpacity onPress={onClose} className="bg-white/10 w-8 h-8 rounded-full items-center justify-center active:scale-95">
+            <TouchableOpacity onPress={onClose} className="bg-white/10 w-8 h-8 rounded-full items-center justify-center">
               <Text className="text-white font-black text-lg leading-none mt-[-2px]">✕</Text>
             </TouchableOpacity>
           </View>
@@ -146,6 +164,7 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
               const isCurrent = day === currentDay && canClaim;
               const isFuture = day > currentDay;
               const amount = REWARDS[day - 1];
+              const tokens = TOKENS[day - 1];
 
               return (
                 <TouchableOpacity
@@ -154,7 +173,7 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
                   disabled={!isCurrent || loading}
                   className={`flex-1 py-3 px-1 rounded-xl items-center justify-center border-2 overflow-hidden
                     ${isPast ? 'bg-gray-800 border-gray-600 opacity-50' 
-                    : isCurrent ? 'bg-yellow-400 border-white shadow-xl animate-pulse scale-105 z-10' 
+                    : isCurrent ? 'bg-yellow-400 border-white' 
                     : 'bg-white/10 border-white/10 opacity-70'}`}
                 >
                   <Text className={`font-black text-[10px] mb-1 ${isCurrent ? 'text-indigo-900' : 'text-white/60'}`}>
@@ -166,6 +185,12 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
                   <Text className={`font-bold mt-1 text-[9px] ${isCurrent ? 'text-indigo-900' : 'text-yellow-400'}`}>
                     {amount >= 1000 ? `${amount/1000}k` : amount} 🪙
                   </Text>
+                  
+                  {tokens > 0 && (
+                    <Text className={`font-bold mt-0.5 text-[9px] ${isCurrent ? 'text-purple-700' : 'text-purple-400'}`}>
+                      +{tokens} 🎟️
+                    </Text>
+                  )}
                   
                   {isPast && (
                     <View className="absolute inset-0 bg-black/40 rounded-xl items-center justify-center">
@@ -183,10 +208,11 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
           </View>
 
           {!canClaim && timeLeftStr ? (
-            <View className="bg-black/30 py-3 px-4 rounded-xl items-center border border-white/5">
-              <Text className="text-white/60 font-bold text-center text-xs">
-                Next reward unlocks in: <Text className="text-yellow-400 font-mono">{timeLeftStr}</Text>
+            <View className="bg-black/30 py-3 px-4 rounded-xl items-center justify-center border border-white/5 flex-row">
+              <Text className="text-white/60 font-bold text-xs mr-1">
+                Next reward unlocks in:
               </Text>
+              <Text className="text-yellow-400 font-mono text-xs font-bold">{timeLeftStr}</Text>
             </View>
           ) : !canClaim && !timeLeftStr ? (
             <View className="bg-black/30 py-3 px-4 rounded-xl items-center border border-white/5">
@@ -197,8 +223,24 @@ export default function DailyRewardModal({ visible, onClose }: { visible: boolea
           ) : null}
 
           {loading && (
-            <View className="absolute inset-0 bg-indigo-900/50 justify-center items-center rounded-3xl">
+            <View className="absolute inset-0 bg-indigo-900/50 justify-center items-center rounded-3xl z-50">
               <ActivityIndicator size="large" color="#facc15" />
+            </View>
+          )}
+
+          {notification && (
+            <View className="absolute inset-0 bg-black/80 justify-center items-center rounded-3xl z-50 p-4">
+              <View className="bg-indigo-950 border border-white/20 p-6 rounded-3xl w-full items-center">
+                <Text className="text-4xl mb-4">{notification.title === 'Success' ? '🎉' : '⚠️'}</Text>
+                <Text className="text-white font-black text-xl mb-2 text-center">{notification.title}</Text>
+                <Text className="text-white/80 font-bold text-center mb-6">{notification.message}</Text>
+                <TouchableOpacity 
+                  onPress={() => setNotification(null)}
+                  className={`${notification.title === 'Success' ? 'bg-green-500' : 'bg-red-500'} px-8 py-3 rounded-xl`}
+                >
+                  <Text className="text-white font-black uppercase tracking-wider">OK</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 

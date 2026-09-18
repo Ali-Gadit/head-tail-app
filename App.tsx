@@ -2,7 +2,7 @@ import "./global.css";
 import OfflineApp from './OfflineApp';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { NavigationBar } from 'expo-navigation-bar';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
@@ -19,6 +19,81 @@ import CoinShop from './src/components/CoinShop';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
+
+function DashboardFriends({ userId, onOpenSettings, onOpenFriends }: { userId: string, onOpenSettings: () => void, onOpenFriends: () => void }) {
+  const [friends, setFriends] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    fetchFriends();
+    const channel = supabase
+      .channel('dash_friends')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, fetchFriends)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchFriends)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  const fetchFriends = async () => {
+    const { data } = await supabase
+      .from('friendships')
+      .select(`
+        sender_id,
+        receiver_id,
+        sender:profiles!friendships_sender_id_fkey(id, username, is_online),
+        receiver:profiles!friendships_receiver_id_fkey(id, username, is_online)
+      `)
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .eq('status', 'accepted');
+    if (data) {
+      setFriends(data.map((f: any) => f.sender_id === userId ? f.receiver : f.sender));
+    }
+  };
+
+  return (
+    <View className="flex-col items-end gap-3 pr-2 mt-1 pointer-events-auto h-80">
+      <View className="flex-row items-center gap-3">
+        <TouchableOpacity onPress={onOpenFriends} className="flex-row items-center gap-2 bg-indigo-600/80 px-4 py-2 rounded-full border border-indigo-400 active:scale-95 shadow-lg">
+          <Text className="text-white font-black text-xs uppercase tracking-wider">Friends</Text>
+          <Text className="text-base">👥</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenSettings} className="bg-gray-600/80 w-9 h-9 rounded-full items-center justify-center border border-gray-400 active:scale-95 shadow-lg">
+          <Text className="text-base">⚙️</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View className="bg-indigo-900/40 border border-indigo-400/20 rounded-3xl p-5 w-44 flex-1 shadow-2xl">
+        <View className="flex-row justify-between items-center mb-4 border-b border-indigo-400/20 pb-3">
+          <Text className="text-indigo-200 text-xs font-black uppercase tracking-widest">Friends</Text>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {friends.length === 0 ? (
+            <Text className="text-white/30 text-sm italic text-center mt-6">No friends yet</Text>
+          ) : (
+            friends.map((f, i) => (
+              <View key={i} className="flex-row items-center gap-3 py-2.5">
+                {/* Avatar */}
+                <View className="w-10 h-10 bg-indigo-500 rounded-full items-center justify-center border-2 border-indigo-300 shadow-inner">
+                  <Text className="text-xl">👤</Text>
+                  {/* Status Indicator */}
+                  <View className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#1e1b4b] ${f.is_online ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,1)]' : 'bg-gray-500'}`} />
+                </View>
+                
+                {/* Name & Status */}
+                <View className="flex-1 justify-center">
+                  <Text className="text-white font-bold text-sm truncate" numberOfLines={1}>{f.username}</Text>
+                  <Text className={`text-[9px] font-black tracking-widest uppercase mt-0.5 ${f.is_online ? 'text-green-400' : 'text-white/30'}`}>
+                    {f.is_online ? 'Online' : 'Offline'}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
 
 function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, profile, signOut, refreshProfile } = useAuth();
@@ -42,9 +117,10 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
   useEffect(() => {
     if (!roomId) return;
     const channel = supabase
-      .channel(`room_${roomId}`)
+      .channel(`public:rooms:${roomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
-        setRoom(payload.new as Room);
+        const updatedRoom = payload.new as Room;
+        setRoom(updatedRoom);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -115,14 +191,22 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     }
   };
 
-  const [showDailyReward, setShowDailyReward] = useState(false);
-  const [showInviteEarn, setShowInviteEarn] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showFriends, setShowFriends] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
+  const findCasualMatch = async () => {
+    setLoading(true);
+    try {
+      const result = await api.findMatch(user!.id, profile?.username || 'Player');
+      setIsCasualMode(true);
+      setShowGameModes(false);
+      setRoom(result.room);
+      setRoomId(result.room.id);
+    } catch (err: any) {
+      setNotification({ title: 'Error', message: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const createRoom = async () => {
+  const startMatch = async (isBot: boolean) => {
     setLoading(true);
     try {
       const result = await api.createRoom({ 
@@ -130,9 +214,10 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
         capacity: 2, 
         userId: user?.id, 
         betAmount: 0, 
-        isBot: gameMode === 'PVE' 
+        isBot
       });
       setIsCasualMode(false);
+      setShowGameModes(false);
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
@@ -142,17 +227,17 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     }
   };
 
-  const joinRoom = async (overrideCode?: string) => {
-    const roomCode = overrideCode || code;
-    if (!roomCode) return;
+  const joinPrivateRoom = async () => {
+    if (!code) return;
     setLoading(true);
     try {
       const result = await api.joinRoom({ 
-        code: roomCode.toUpperCase(), 
+        code: code.toUpperCase(), 
         name: profile?.username || 'Player', 
         userId: user?.id 
       });
       setIsCasualMode(false);
+      setShowGameModes(false);
       setRoom(result.room);
       setRoomId(result.room.id);
     } catch (err: any) {
@@ -161,12 +246,31 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setLoading(false);
     }
   };
+
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [showInviteEarn, setShowInviteEarn] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showGameModes, setShowGameModes] = useState(false);
+  const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
+
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true })
+      ])
+    ).start();
+  }, [pulseAnim]);
 
   if (roomId && room && user) {
     return (
       <SafeAreaView className="flex-1 bg-indigo-950">
         <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
-        <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
+        <NotificationManager onJoinRoom={(c) => { setCode(c); joinPrivateRoom(); }} />
           <View className="p-4 flex-1">
           <GameRoom room={room} playerId={user.id} onExit={() => { setRoomId(null); refreshProfile(); }} initialEditMode={isNewRoom} isCasualMatch={isCasualMode} />
         </View>
@@ -182,7 +286,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       <Friends visible={showFriends} onClose={() => setShowFriends(false)} />
       <DailyRewardModal visible={showDailyReward} onClose={() => setShowDailyReward(false)} />
       <InviteEarnModal visible={showInviteEarn} onClose={() => setShowInviteEarn(false)} />
-      <NotificationManager onJoinRoom={(c) => { setCode(c); joinRoom(c); }} />
+      <NotificationManager onJoinRoom={(c) => { setCode(c); joinPrivateRoom(); }} />
       
       {/* Settings Modal */}
       <Modal visible={showSettings} animationType="fade" transparent onRequestClose={() => setShowSettings(false)}>
@@ -259,7 +363,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             </View>
 
             {/* Vertical Menu */}
-            <View className="flex-col gap-2 mt-3 ml-2">
+            <View className="flex-col gap-6 mt-8 ml-2">
               <TouchableOpacity onPress={() => setShowCoinShop(true)} className="flex-row items-center gap-2 active:opacity-50">
                 <View className="bg-blue-500 w-8 h-8 rounded-full items-center justify-center shadow-md border border-blue-400">
                   <Text className="text-sm drop-shadow-md">🛒</Text>
@@ -291,75 +395,130 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             
           </View>
 
-          {/* Top Right: Friends & Settings */}
-          <View className="flex-row items-center gap-3 pr-2 mt-1 pointer-events-auto">
-            <TouchableOpacity onPress={() => setShowFriends(true)} className="w-10 h-10 bg-indigo-600 rounded-full items-center justify-center border border-indigo-400 shadow-lg active:scale-95">
-              <Text className="text-xl">👥</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowSettings(true)} className="w-10 h-10 bg-gray-600 rounded-full items-center justify-center border border-gray-400 shadow-lg active:scale-95">
-              <Text className="text-xl">⚙️</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Top Right: Live Friends Widget */}
+          <DashboardFriends 
+            userId={user.id} 
+            onOpenFriends={() => setShowFriends(true)} 
+            onOpenSettings={() => setShowSettings(true)} 
+          />
         </View>
       )}
 
-      <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 100, flexGrow: 1, justifyContent: 'center' }}>
-        <View className="items-center mb-8">
-          <Text className="text-4xl font-black text-white italic tracking-tighter">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
+      <View className="flex-1 justify-center pt-4">
+        <View className="items-center mb-4">
+          <Text className="text-4xl font-black text-white italic tracking-tighter shadow-xl">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
         </View>
 
-          <View className="bg-white/10 p-6 sm:p-8 rounded-[2rem] border border-white/20 shadow-2xl space-y-6">
-          <View>
-            <Text className="text-center text-[10px] text-white font-black uppercase opacity-50 tracking-widest mb-2">Game Mode</Text>
-            <View className="flex-row gap-3">
-              <TouchableOpacity onPress={() => setGameMode('PVP')} className={`flex-1 py-3 rounded-xl border ${gameMode === 'PVP' ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
-                <Text className={`text-center font-black text-xs ${gameMode === 'PVP' ? 'text-indigo-900' : 'text-white/60'}`}>MULTIPLAYER</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setGameMode('PVE')} className={`flex-1 py-3 rounded-xl border ${gameMode === 'PVE' ? 'bg-yellow-400 border-yellow-400' : 'bg-white/10 border-white/20'}`}>
-                <Text className={`text-center font-black text-xs ${gameMode === 'PVE' ? 'text-indigo-900' : 'text-white/60'}`}>VS COMPUTER</Text>
+        <View className="items-center mt-2">
+          <TouchableOpacity onPress={() => setShowGameModes(true)} className="items-center active:scale-95">
+            {/* Ambient Outer Aura */}
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }} className="w-48 h-48 rounded-full bg-yellow-500/10 items-center justify-center border border-yellow-400/20">
+              {/* Inner Glowing Aura */}
+              <View className="w-40 h-40 rounded-full bg-yellow-500/20 items-center justify-center border border-yellow-400/30">
+                {/* The 3D Golden Coin */}
+                <View className="w-32 h-32 rounded-full bg-yellow-400 items-center justify-center border-b-8 border-yellow-600 shadow-2xl relative overflow-hidden border-t-2 border-l-2 border-r-2 border-yellow-200">
+                  {/* Glossy Top Shine */}
+                  <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/30 rounded-t-full" />
+                  
+                  {/* Coin Face Design */}
+                  <View className="items-center justify-center border-2 border-yellow-500/30 rounded-full w-24 h-24 flex-row">
+                    <Text className="text-5xl font-black text-yellow-700 italic tracking-tighter shadow-sm">H</Text>
+                    <Text className="text-5xl font-black text-yellow-100 italic tracking-tighter shadow-sm">T</Text>
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+            
+            {/* Cinematic Tap to Play */}
+            <View className="mt-10 items-center justify-center animate-pulse">
+              <View className="flex-row items-center gap-4">
+                <View className="h-[2px] w-8 bg-yellow-400/30 rounded-full" />
+                <Text className="text-yellow-400 font-black text-lg tracking-[0.3em] uppercase" style={{ textShadowColor: 'rgba(250,204,21,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
+                  Tap to Play
+                </Text>
+                <View className="h-[2px] w-8 bg-yellow-400/30 rounded-full" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Game Modes Modal */}
+      <Modal visible={showGameModes} animationType="fade" transparent onRequestClose={() => setShowGameModes(false)}>
+        <View className="flex-1 bg-black/80 justify-center items-center p-4">
+          <View className="w-full max-w-5xl">
+            <View className="flex-row justify-between items-center mb-8 px-4">
+              <Text className="text-3xl font-black text-white uppercase tracking-widest">Game Modes</Text>
+              <TouchableOpacity onPress={() => setShowGameModes(false)} className="w-10 h-10 bg-white/10 rounded-full items-center justify-center active:scale-95">
+                <Text className="text-white font-bold text-lg">✕</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          <TouchableOpacity onPress={createRoom} disabled={loading} className="w-full bg-yellow-400 py-4 rounded-2xl shadow-xl mt-6 active:scale-95 disabled:opacity-50">
-            <Text className="text-indigo-900 font-black text-center text-lg uppercase tracking-wider">{loading ? 'Creating...' : (gameMode === 'PVP' ? 'Create Private Room (1 🎟️)' : 'Start Match')}</Text>
-          </TouchableOpacity>
-
-          {gameMode === 'PVP' && (
-            <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }} className="w-full">
               
-              <TouchableOpacity onPress={() => joinRoom('casual')} disabled={loading} className="w-full bg-green-500 py-4 rounded-2xl shadow-xl mt-3 active:scale-95 disabled:opacity-50 border-b-4 border-green-700">
-                <Text className="text-white font-black text-center text-lg uppercase tracking-wider">Find Casual Match</Text>
+              {/* Card 1: Random Match */}
+              <TouchableOpacity onPress={findCasualMatch} disabled={loading} className="w-56 h-72 bg-green-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-green-700 active:scale-95">
+                <View>
+                  <Text className="text-4xl mb-4">🌍</Text>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Random Match</Text>
+                  <Text className="text-green-100 font-bold mt-2 text-sm leading-tight">Play instantly against someone online.</Text>
+                </View>
+                <View className="bg-black/20 rounded-xl py-3 items-center">
+                  <Text className="text-white font-black uppercase tracking-wider text-sm">{loading ? 'Searching...' : 'Play Now'}</Text>
+                </View>
               </TouchableOpacity>
-            </>
-          )}
 
-          {gameMode === 'PVP' && (
-            <>
-              <Text className="text-center text-white/50 font-black text-xs uppercase tracking-widest my-4">OR</Text>
-              
-              <View className="gap-4">
-                <TextInput
-                  value={code}
-                  onChangeText={setCode}
-                  placeholder="ENTER ROOM CODE"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  className="w-full bg-white/20 border border-white/30 rounded-2xl py-4 px-6 text-center text-xl font-mono text-white focus:border-yellow-400 uppercase"
-                  maxLength={6}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity onPress={() => joinRoom()} disabled={loading || !code} className="w-full bg-white py-4 rounded-2xl shadow-xl active:scale-95 disabled:opacity-50">
-                  <Text className="text-indigo-600 font-black text-center text-lg uppercase tracking-wider">{loading ? 'Joining...' : 'Join Room'}</Text>
-                </TouchableOpacity>
+              {/* Card 2: VS Computer */}
+              <TouchableOpacity onPress={() => startMatch(true)} disabled={loading} className="w-56 h-72 bg-blue-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-blue-700 active:scale-95">
+                <View>
+                  <Text className="text-4xl mb-4">🤖</Text>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">VS Computer</Text>
+                  <Text className="text-blue-100 font-bold mt-2 text-sm leading-tight">Practice offline against the AI.</Text>
+                </View>
+                <View className="bg-black/20 rounded-xl py-3 items-center">
+                  <Text className="text-white font-black uppercase tracking-wider text-sm">{loading ? 'Creating...' : 'Play Bot'}</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Card 3: Create Private Room */}
+              <TouchableOpacity onPress={() => startMatch(false)} disabled={loading} className="w-56 h-72 bg-yellow-400 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-yellow-600 active:scale-95">
+                <View>
+                  <Text className="text-4xl mb-4">🎟️</Text>
+                  <Text className="text-xl font-black text-indigo-900 tracking-widest uppercase">Private Room</Text>
+                  <Text className="text-indigo-900/70 font-bold mt-2 text-sm leading-tight">Host a match for a friend.</Text>
+                </View>
+                <View className="bg-black/10 rounded-xl py-3 items-center">
+                  <Text className="text-indigo-900 font-black uppercase tracking-wider text-sm">{loading ? 'Creating...' : 'Host Room'}</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Card 4: Join Private Room */}
+              <View className="w-56 h-72 bg-purple-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-purple-700">
+                <View>
+                  <Text className="text-4xl mb-4">🔑</Text>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Private Room</Text>
+                  <Text className="text-purple-100 font-bold mt-2 text-sm leading-tight">Enter a room code to play.</Text>
+                </View>
+                <View className="gap-2">
+                  <TextInput
+                    value={code}
+                    onChangeText={setCode}
+                    placeholder="000000"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    className="w-full bg-black/20 rounded-xl py-3 px-2 text-center text-xl font-black font-mono text-white tracking-[0.2em]"
+                    maxLength={6}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity onPress={joinPrivateRoom} disabled={loading || !code} className="bg-white rounded-xl py-3 items-center active:scale-95 disabled:opacity-50">
+                    <Text className="text-purple-700 font-black uppercase tracking-wider text-sm">{loading ? 'Joining...' : 'Join'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </>
-          )}
-        </View>
 
-        <View className="items-center mt-6">
-          <Text className="text-white/30 text-xs font-mono">Made with ♡ for school friends</Text>
+            </ScrollView>
+          </View>
         </View>
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 }

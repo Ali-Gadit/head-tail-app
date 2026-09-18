@@ -34,7 +34,7 @@ export default function CoinShop({ visible, onClose }: CoinShopProps) {
   const requestBuyToken = () => {
     setConfirmAction({
       title: 'CONFIRM PURCHASE',
-      message: 'Spend 50 💎 to buy 1 Token 🎟️?',
+      message: 'Spend 10 💎 to buy 1 Token 🎟️?',
       action: () => buyToken()
     });
   };
@@ -110,7 +110,7 @@ export default function CoinShop({ visible, onClose }: CoinShopProps) {
               <TouchableOpacity onPress={requestBuyToken} disabled={loading} className="bg-purple-500 px-4 py-2 rounded-xl active:scale-95 border border-purple-400 flex-row items-center shadow-lg">
                 <Text className="text-white font-black uppercase text-xs mr-2">BUY</Text>
                 <View className="bg-black/30 px-2 py-0.5 rounded-md">
-                   <Text className="text-cyan-400 font-bold text-xs">50 💎</Text>
+                   <Text className="text-cyan-400 font-bold text-xs">10 💎</Text>
                 </View>
               </TouchableOpacity>
             </View>
