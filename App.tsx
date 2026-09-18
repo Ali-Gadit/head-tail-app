@@ -9,7 +9,6 @@ import { AuthProvider, useAuth } from './src/components/AuthProvider';
 import Auth from './src/components/Auth';
 import GameRoom from './src/components/GameRoom';
 import Friends from './src/components/Friends';
-import WorldChat from './src/components/WorldChat';
 import NotificationManager from './src/components/NotificationManager';
 import BackgroundMusic from './src/components/BackgroundMusic';
 import Leaderboard from './src/components/Leaderboard';
@@ -357,7 +356,6 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
           )}
         </View>
 
-        <WorldChat />
         <View className="items-center mt-6">
           <Text className="text-white/30 text-xs font-mono">Made with ♡ for school friends</Text>
         </View>
