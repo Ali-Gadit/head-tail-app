@@ -298,8 +298,15 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
                 <Text className="text-xl">{soundEnabled ? '🎵' : '🔇'}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={signOut} className="flex-1 bg-red-500/80 rounded-full items-center justify-center active:scale-95 border-2 border-red-400 shadow-lg">
-                <Text className="text-white font-black uppercase tracking-wider">Sign Out</Text>
+              <TouchableOpacity 
+                onPress={async () => {
+                  setLoading(true);
+                  await signOut();
+                }} 
+                disabled={loading}
+                className={`flex-1 bg-red-500/80 rounded-full items-center justify-center border-2 border-red-400 ${loading ? 'opacity-50' : 'active:scale-95'}`}
+              >
+                <Text className="text-white font-black uppercase tracking-wider">{loading ? 'Signing Out...' : 'Sign Out'}</Text>
               </TouchableOpacity>
             </View>
 

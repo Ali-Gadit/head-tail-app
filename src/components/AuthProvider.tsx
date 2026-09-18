@@ -151,7 +151,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     if (user) {
-      await supabase.from('profiles').update({ is_online: false }).eq('id', user.id);
+      // Fire and forget the presence update so we don't stall the sign out process
+      supabase.from('profiles').update({ is_online: false }).eq('id', user.id);
     }
     
     // Clear Google Sign-In session so the account picker shows up next time
