@@ -16,6 +16,7 @@ import OnboardingModal from './src/components/OnboardingModal';
 import DailyRewardModal from './src/components/DailyRewardModal';
 import InviteEarnModal from './src/components/InviteEarnModal';
 import CoinShop from './src/components/CoinShop';
+import GuideModal from './src/components/GuideModal';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
@@ -253,6 +254,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
   const [showFriends, setShowFriends] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGameModes, setShowGameModes] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [notification, setNotification] = useState<{title: string, message: string} | null>(null);
 
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
@@ -329,6 +331,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       <Friends visible={showFriends} onClose={() => setShowFriends(false)} />
       <DailyRewardModal visible={showDailyReward} onClose={() => setShowDailyReward(false)} />
       <InviteEarnModal visible={showInviteEarn} onClose={() => setShowInviteEarn(false)} />
+      <GuideModal visible={showGuide} onClose={() => setShowGuide(false)} />
       <NotificationManager onJoinRoom={(c) => { setCode(c); joinPrivateRoom(); }} />
       
       {/* Settings Modal */}
@@ -453,6 +456,13 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
                   <Text className="text-sm drop-shadow-md">🏆</Text>
                 </View>
                 <Text className="text-yellow-400 font-black uppercase tracking-widest text-[10px]">Leaderboard</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity onPress={() => setShowGuide(true)} className="flex-row items-center gap-2 active:opacity-50 mt-1">
+                <View className="bg-cyan-500 w-8 h-8 rounded-full items-center justify-center shadow-md border border-cyan-400">
+                  <Text className="text-sm drop-shadow-md">📖</Text>
+                </View>
+                <Text className="text-cyan-400 font-black uppercase tracking-widest text-[10px]">How to Play</Text>
               </TouchableOpacity>
             </View>
             
