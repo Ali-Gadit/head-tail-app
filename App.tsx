@@ -2,7 +2,7 @@ import "./global.css";
 import OfflineApp from './OfflineApp';
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal, Animated, PanResponder } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { NavigationBar } from 'expo-navigation-bar';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
@@ -266,6 +266,49 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     ).start();
   }, [pulseAnim]);
 
+  const coinPan = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const coinPanResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: () => {
+        coinPan.stopAnimation();
+        coinPan.setOffset({
+          x: (coinPan.x as any)._value,
+          y: (coinPan.y as any)._value
+        });
+        coinPan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: coinPan.x, dy: coinPan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (e, gesture) => {
+        coinPan.flattenOffset();
+        Animated.spring(coinPan, {
+          toValue: { x: 0, y: 0 },
+          friction: 5,
+          tension: 40,
+          useNativeDriver: false,
+        }).start();
+
+        // If it was just a quick tap without much movement, open the game modes
+        if (Math.abs(gesture.dx) < 5 && Math.abs(gesture.dy) < 5) {
+          setShowGameModes(true);
+        }
+      },
+    })
+  ).current;
+
+  const rotateX = coinPan.y.interpolate({
+    inputRange: [-100, 100],
+    outputRange: ['180deg', '-180deg'],
+  });
+
+  const rotateY = coinPan.x.interpolate({
+    inputRange: [-100, 100],
+    outputRange: ['-180deg', '180deg'],
+  });
+
   if (roomId && room && user) {
     return (
       <SafeAreaView className="flex-1 bg-indigo-950">
@@ -411,7 +454,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
         </View>
       )}
 
-      <View className="flex-1 justify-center pt-4">
+      <Animated.View {...coinPanResponder.panHandlers} className="flex-1 justify-center pt-4">
         <View className="items-center mb-4">
           <Text className="text-4xl font-black text-white italic tracking-tighter shadow-xl">HEAD <Text className="text-yellow-400">TAIL</Text></Text>
         </View>
@@ -423,7 +466,10 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
               {/* Inner Glowing Aura */}
               <View className="w-40 h-40 rounded-full bg-yellow-500/20 items-center justify-center border border-yellow-400/30">
                 {/* The 3D Golden Coin */}
-                <View className="w-32 h-32 rounded-full bg-yellow-400 items-center justify-center border-b-8 border-yellow-600 shadow-2xl relative overflow-hidden border-t-2 border-l-2 border-r-2 border-yellow-200">
+                <Animated.View 
+                  style={{ transform: [{ rotateX }, { rotateY }] }}
+                  className="w-32 h-32 rounded-full bg-yellow-400 items-center justify-center border-b-8 border-yellow-600 shadow-2xl relative overflow-hidden border-t-2 border-l-2 border-r-2 border-yellow-200"
+                >
                   {/* Glossy Top Shine */}
                   <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/30 rounded-t-full" />
                   
@@ -432,7 +478,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
                     <Text className="text-5xl font-black text-yellow-700 italic tracking-tighter shadow-sm">H</Text>
                     <Text className="text-5xl font-black text-yellow-100 italic tracking-tighter shadow-sm">T</Text>
                   </View>
-                </View>
+                </Animated.View>
               </View>
             </Animated.View>
             
@@ -448,7 +494,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             </View>
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Game Modes Modal */}
       <Modal visible={showGameModes} animationType="fade" transparent onRequestClose={() => setShowGameModes(false)}>
