@@ -602,7 +602,6 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
 function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, loading } = useAuth();
-  const [showIntro, setShowIntro] = useState(true);
   
   if (loading) {
     return (
@@ -613,9 +612,6 @@ function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSou
   }
 
   if (user) {
-    if (showIntro) {
-      return <IntroScreen onFinish={() => setShowIntro(false)} />;
-    }
     return <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />;
   }
 
@@ -630,6 +626,7 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [networkChecked, setNetworkChecked] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showIntro, setShowIntro] = useState(true);
 
   const checkNetwork = async () => {
     try {
@@ -644,6 +641,10 @@ export default function App() {
   useEffect(() => {
     checkNetwork();
   }, []);
+
+  if (showIntro) {
+    return <IntroScreen onFinish={() => setShowIntro(false)} />;
+  }
 
   if (!networkChecked) {
     return (

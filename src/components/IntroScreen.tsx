@@ -44,8 +44,8 @@ export default function IntroScreen({ onFinish }: { onFinish: () => void }) {
     <View className="flex-1 bg-black justify-center items-center">
       <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
         <Image 
-          source={require('../../assets/codeverse_logo_transparent.png')} 
-          className="w-96 h-96"
+          source={require('../../assets/cv_logo_final.png')} 
+          className="w-64 h-64"
           resizeMode="contain"
         />
       </Animated.View>
