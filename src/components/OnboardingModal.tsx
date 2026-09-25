@@ -8,13 +8,18 @@ export default function OnboardingModal({ visible, onComplete }: { visible: bool
   const [username, setUsername] = useState(profile?.username || '');
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSave = async () => {
+    setErrorMessage('');
     if (!username.trim()) {
-      Alert.alert('Error', 'Please enter a username');
+      setErrorMessage('Please enter a username');
       return;
     }
-    if (!user) return;
+    if (!user) {
+      setErrorMessage('Session error. Please restart the app.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -56,60 +61,99 @@ export default function OnboardingModal({ visible, onComplete }: { visible: bool
       await refreshProfile();
       onComplete();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save profile');
+      setErrorMessage(err.message || 'Failed to save profile');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <Modal visible={visible} animationType="fade" transparent={true}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        className="flex-1 justify-center bg-indigo-950/95 p-6"
+        className="flex-1 justify-center items-center bg-black/70 p-4"
       >
-        <View className="bg-indigo-900 p-6 rounded-3xl border border-indigo-400/30 shadow-2xl">
-          <Text className="text-3xl font-black text-white text-center mb-2 italic">WELCOME</Text>
-          <Text className="text-white/60 text-center mb-6 font-medium px-4">Let's set up your profile before you start playing!</Text>
+        <View className="w-full max-w-[400px] bg-black/80 px-6 py-5 rounded-[2rem] border border-cyan-500/30 shadow-[0_0_30px_rgba(34,211,238,0.2)]">
           
-          <View className="mb-4">
-            <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Choose a Username</Text>
-            <TextInput
-              value={username}
-              onChangeText={setUsername}
-              className="w-full bg-white/10 border border-white/20 rounded-2xl p-4 text-white font-bold text-lg"
-              placeholder="CoolPlayer99"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              maxLength={15}
-            />
+          {/* Header */}
+          <View className="items-center mb-5">
+            <View className="w-12 h-12 bg-cyan-500/10 rounded-2xl border border-cyan-500/30 items-center justify-center mb-3 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+               <Text className="text-2xl">🏆</Text>
+            </View>
+            <Text 
+              className="text-2xl font-black text-white tracking-widest uppercase text-center"
+              style={{ textShadowColor: 'rgba(34,211,238,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}
+            >
+              PROFILE SETUP
+            </Text>
+            <Text className="text-cyan-400/80 text-[10px] font-black uppercase tracking-[0.2em] mt-1.5 text-center">
+              Claim your identity in the arena
+            </Text>
           </View>
+          
+          {/* Error */}
+          {errorMessage ? (
+            <View className="mb-3 bg-red-950/80 p-1.5 rounded-lg border border-red-500/50">
+              <Text className="text-red-400 font-bold text-[9px] text-center uppercase tracking-widest">{errorMessage}</Text>
+            </View>
+          ) : null}
 
-          <View className="mb-8">
-            <Text className="text-white text-xs font-bold opacity-70 mb-1 ml-1 uppercase">Referral Code (Optional)</Text>
-            <TextInput
-              value={referralCode}
-              onChangeText={setReferralCode}
-              className="w-full bg-white/10 border border-white/20 rounded-2xl p-4 text-white font-bold text-lg"
-              placeholder="e.g. 1234"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              keyboardType="number-pad"
-            />
-            <Text className="text-yellow-400/80 text-xs mt-2 text-center">Enter a code to receive 5,000 bonus coins!</Text>
+          {/* Inputs */}
+          <View className="gap-4 mb-6">
+            
+            <View className="relative">
+              <Text className="text-white/60 text-[9px] font-bold uppercase tracking-widest ml-1 mb-1.5">Username</Text>
+              <View className={`w-full flex-row items-center bg-black/60 border rounded-xl shadow-inner ${errorMessage && !username.trim() ? 'border-red-500/80 bg-red-950/40' : 'border-cyan-500/20'}`}>
+                <View className="pl-3 pr-2">
+                   <Text className="text-cyan-400/50 text-xs">👤</Text>
+                </View>
+                <TextInput
+                  value={username}
+                  onChangeText={(t) => { setUsername(t); setErrorMessage(''); }}
+                  className="flex-1 py-3 pr-3 text-white text-sm font-bold"
+                  placeholder="e.g. MasterBlaster"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  maxLength={15}
+                />
+              </View>
+            </View>
+
+            <View className="relative">
+              <Text className="text-white/60 text-[9px] font-bold uppercase tracking-widest ml-1 mb-1.5">Referral Code (Optional)</Text>
+              <View className="w-full flex-row items-center bg-black/60 border border-yellow-500/30 rounded-xl shadow-[0_0_10px_rgba(250,204,21,0.1)]">
+                <View className="pl-3 pr-2">
+                   <Text className="text-yellow-400/50 text-xs">🎁</Text>
+                </View>
+                <TextInput
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  className="flex-1 py-3 pr-3 text-white text-sm font-bold"
+                  placeholder="e.g. 1234"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Text className="text-yellow-400/80 text-[10px] font-bold mt-1.5 ml-1 italic tracking-wide">+5,000 Coins Bonus!</Text>
+            </View>
+
           </View>
 
           <TouchableOpacity 
             onPress={handleSave} 
             disabled={loading}
-            className={`w-full bg-yellow-400 py-4 rounded-2xl shadow-xl flex items-center justify-center ${loading ? 'opacity-50' : 'active:scale-95'}`}
+            className={`w-full py-3.5 rounded-xl flex items-center justify-center border-b-4 active:scale-95 shadow-[0_0_20px_rgba(34,211,238,0.4)] ${
+              loading ? 'opacity-50 border-gray-600 bg-gray-500' : 'bg-cyan-500 border-cyan-700'
+            }`}
           >
             {loading ? (
-              <ActivityIndicator color="#312e81" />
+              <ActivityIndicator color="#0f172a" />
             ) : (
-              <Text className="text-indigo-900 font-black text-xl uppercase tracking-wider">
-                Start Playing
+              <Text className="font-black text-xs uppercase tracking-widest text-indigo-950">
+                SAVE PROFILE
               </Text>
             )}
           </TouchableOpacity>
+
         </View>
       </KeyboardAvoidingView>
     </Modal>

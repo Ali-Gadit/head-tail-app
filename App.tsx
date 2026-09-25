@@ -17,6 +17,7 @@ import DailyRewardModal from './src/components/DailyRewardModal';
 import InviteEarnModal from './src/components/InviteEarnModal';
 import CoinShop from './src/components/CoinShop';
 import GuideModal from './src/components/GuideModal';
+import IntroScreen from './src/components/IntroScreen';
 import { api } from './src/lib/api';
 import { supabase } from './src/lib/supabase';
 import { Room } from './src/lib/types';
@@ -601,6 +602,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
 function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, loading } = useAuth();
+  const [showIntro, setShowIntro] = useState(true);
   
   if (loading) {
     return (
@@ -610,10 +612,17 @@ function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSou
     );
   }
 
-  return user ? <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} /> : (
-    <SafeAreaView className="flex-1 bg-indigo-950 justify-center p-6">
+  if (user) {
+    if (showIntro) {
+      return <IntroScreen onFinish={() => setShowIntro(false)} />;
+    }
+    return <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />;
+  }
+
+  return (
+    <View className="flex-1 bg-indigo-950">
        <Auth />
-    </SafeAreaView>
+    </View>
   );
 }
 
