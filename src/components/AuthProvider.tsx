@@ -149,10 +149,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user) return;
+    
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        supabase.from('profiles').update({ is_online: true }).eq('id', user.id).then();
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        supabase.from('profiles').update({ is_online: false }).eq('id', user.id).then();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user]);
+
   const signOut = async () => {
     if (user) {
-      // Fire and forget the presence update so we don't stall the sign out process
-      supabase.from('profiles').update({ is_online: false }).eq('id', user.id);
+      // Must await the presence update BEFORE signing out, otherwise Row Level Security blocks it!
+      await supabase.from('profiles').update({ is_online: false }).eq('id', user.id);
     }
     
     // Clear Google Sign-In session so the account picker shows up next time

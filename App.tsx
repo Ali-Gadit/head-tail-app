@@ -400,15 +400,28 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
               {/* Currencies */}
               <View className="flex-row items-center gap-2 mt-2">
-                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                  <Text className="text-yellow-400 font-bold text-xs">🪙 {profile.coins || 0}</Text>
+                
+                {/* Gold */}
+                <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-black/40 rounded-full pl-3 pr-1.5 py-1 flex-row items-center border border-yellow-500/20 active:scale-95 shadow-xl">
+                  <Text className="text-yellow-400 font-black text-[11px] tracking-wider mr-2">🪙 {profile.coins || 0}</Text>
+                  <View className="bg-yellow-400/20 rounded-full w-[18px] h-[18px] items-center justify-center border border-yellow-400/30">
+                    <Text className="text-yellow-400 font-bold text-[13px] leading-[13px] mt-[1px]">+</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Diamonds */}
+                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-cyan-500/20 shadow-xl">
+                  <Text className="text-cyan-400 font-black text-[11px] tracking-wider">💎 {profile.premium_currency || 0}</Text>
                 </View>
-                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                  <Text className="text-cyan-400 font-bold text-xs">💎 {profile.premium_currency || 0}</Text>
-                </View>
-                <View className="bg-black/40 rounded-full px-3 py-1.5 flex-row items-center border border-white/10">
-                  <Text className="text-purple-400 font-bold text-xs">🎟️ {profile.private_room_tokens || 0}</Text>
-                </View>
+
+                {/* Tickets */}
+                <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-black/40 rounded-full pl-3 pr-1.5 py-1 flex-row items-center border border-slate-300/20 active:scale-95 shadow-xl">
+                  <Text className="text-slate-200 font-black text-[11px] tracking-wider mr-2">🎟️ {profile.private_room_tokens || 0}</Text>
+                  <View className="bg-slate-300/20 rounded-full w-[18px] h-[18px] items-center justify-center border border-slate-300/30">
+                    <Text className="text-white font-bold text-[13px] leading-[13px] mt-[1px]">+</Text>
+                  </View>
+                </TouchableOpacity>
+
               </View>
             </View>
 
