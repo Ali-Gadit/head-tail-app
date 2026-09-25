@@ -1,19 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, Image, Easing } from 'react-native';
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 export default function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
-  const player = useAudioPlayer(require('../../assets/intro.ogg'));
+  const player = useAudioPlayer(require('../../assets/intro.mp3'));
 
   useEffect(() => {
-    if (player) {
-      player.play();
-    }
+    // Initialize audio engine for the splash screen so it doesn't get muted
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: 'mixWithOthers'
+    }).catch(console.error);
 
     Animated.sequence([
-      // Fade in and scale up the logo
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -27,9 +29,7 @@ export default function IntroScreen({ onFinish }: { onFinish: () => void }) {
           useNativeDriver: true,
         })
       ]),
-      // Hold for 2 seconds
       Animated.delay(2000),
-      // Fade out
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 1000,
@@ -38,6 +38,14 @@ export default function IntroScreen({ onFinish }: { onFinish: () => void }) {
     ]).start(() => {
       onFinish();
     });
+  }, []); // Run animation only once!
+
+  useEffect(() => {
+    if (player) {
+      player.volume = 1.0;
+      // Removed the 3 second skip so it plays from the beginning again!
+      player.play();
+    }
   }, [player]);
 
   return (

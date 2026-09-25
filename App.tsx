@@ -16,6 +16,7 @@ import OnboardingModal from './src/components/OnboardingModal';
 import DailyRewardModal from './src/components/DailyRewardModal';
 import InviteEarnModal from './src/components/InviteEarnModal';
 import CoinShop from './src/components/CoinShop';
+import LoadingScreen from './src/components/LoadingScreen';
 import GuideModal from './src/components/GuideModal';
 import IntroScreen from './src/components/IntroScreen';
 import { api } from './src/lib/api';
@@ -602,13 +603,11 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
 function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, loading } = useAuth();
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   
-  if (loading) {
-    return (
-      <View className="flex-1 bg-indigo-950 items-center justify-center">
-        <Text className="text-yellow-400 font-black text-2xl animate-pulse">Loading...</Text>
-      </View>
-    );
+  // The loading screen stays alive until it guarantees the progress bar hits 100%
+  if (showLoadingScreen) {
+    return <LoadingScreen isReady={!loading} onComplete={() => setShowLoadingScreen(false)} />;
   }
 
   if (user) {
@@ -643,14 +642,23 @@ export default function App() {
   }, []);
 
   if (showIntro) {
-    return <IntroScreen onFinish={() => setShowIntro(false)} />;
+    return (
+      <>
+        <StatusBar hidden={true} />
+        <NavigationBar hidden={true} />
+        <IntroScreen onFinish={() => setShowIntro(false)} />
+      </>
+    );
   }
 
   if (!networkChecked) {
+    // Network check usually finishes during the 3.5 second IntroScreen, but if not, fallback to black
     return (
-      <View className="flex-1 bg-indigo-950 items-center justify-center">
-        <Text className="text-yellow-400 font-black text-2xl animate-pulse">Checking connection...</Text>
-      </View>
+      <>
+        <StatusBar hidden={true} />
+        <NavigationBar hidden={true} />
+        <View className="flex-1 bg-black" />
+      </>
     );
   }
 
