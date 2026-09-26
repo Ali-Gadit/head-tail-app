@@ -317,10 +317,10 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
   if (roomId && room && user) {
     return (
-      <SafeAreaView className="flex-1 bg-indigo-950">
+      <SafeAreaView className="flex-1 bg-black">
         <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
         <NotificationManager onJoinRoom={(c) => { setCode(c); joinPrivateRoom(); }} />
-          <View className="p-4 flex-1">
+        <View className="flex-1">
           <GameRoom room={room} playerId={user.id} onExit={() => { setRoomId(null); refreshProfile(); }} initialEditMode={isNewRoom} isCasualMatch={isCasualMode} />
         </View>
       </SafeAreaView>

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, mediaDevices, MediaStream } from 'react-native-webrtc';
 import InCallManager from 'react-native-incall-manager';
 
-export function useWebRTC(roomId: string, playerId: string) {
+export function useWebRTC(roomId: string, playerId: string, disabled: boolean = false) {
   const [micEnabled, setMicEnabled] = useState(false);
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
   
@@ -14,6 +14,7 @@ export function useWebRTC(roomId: string, playerId: string) {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
+    if (disabled) return;
     InCallManager.start({ media: 'audio' });
     InCallManager.setForceSpeakerphoneOn(true);
     InCallManager.setSpeakerphoneOn(true);
@@ -21,7 +22,7 @@ export function useWebRTC(roomId: string, playerId: string) {
     return () => {
       InCallManager.stop();
     };
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
     let pc = new RTCPeerConnection({

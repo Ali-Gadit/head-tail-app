@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { createAudioPlayer } from 'expo-audio';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useChat } from '../hooks/useChat';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { Room, UserAction } from '../lib/types';
@@ -20,6 +21,17 @@ interface GameRoomProps {
   isCasualMatch?: boolean;
 }
 
+
+const GameRoomBackground = () => (
+  <View className="absolute inset-0 bg-black" pointerEvents="none">
+    <Image 
+      source={require('../../assets/cricket_stadium_bg.jpg')}
+      className="absolute w-full h-full opacity-80"
+      resizeMode="cover"
+    />
+    <View className="absolute inset-0 bg-black/40" />
+  </View>
+);
 
 const AUDIO_ASSETS: Record<string, any> = {
   'hello': require('../../assets/voices/hello.mp3'),
@@ -76,7 +88,8 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   const [customCaptainIndex, setCustomCaptainIndex] = useState<number | null>(null);
 
   const myDbThrow = playerId === room.player1_id ? room.p1_throw : (playerId === room.player2_id ? room.p2_throw : room.p3_throw);
-  const { micEnabled, speakerEnabled, toggleMic, toggleSpeaker } = useWebRTC(room.id, playerId);
+  const isSearchingMatch = isCasualMatch && !room.player2_id && room.status === 'waiting';
+  const { micEnabled, speakerEnabled, toggleMic, toggleSpeaker } = useWebRTC(room.id, playerId, isSearchingMatch);
 
   const myName = playerId === room.player1_id ? room.p1_name : (playerId === room.player2_id ? room.p2_name : room.p3_name) || 'Player';
   const { messages, sendMessage, latestSpecialMessage } = useChat(room.id, playerId, myName || 'Player');
@@ -92,6 +105,35 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
 
   const [timeLeft, setTimeLeft] = React.useState<number | null>(null);
 
+  const [searchTime, setSearchTime] = React.useState(0);
+  const searchAnim = React.useRef(new Animated.Value(0)).current;
+  const entryAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.timing(entryAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isCasualMatch && !room.player2_id && room.status === 'waiting') {
+      interval = setInterval(() => setSearchTime(prev => prev + 1), 1000);
+      Animated.loop(
+        Animated.timing(searchAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      setSearchTime(0);
+      searchAnim.stopAnimation();
+    }
+    return () => clearInterval(interval);
+  }, [isCasualMatch, room.player2_id, room.status, searchAnim]);
   React.useEffect(() => {
     if (room.status === 'playing' && myThrowInPlay === null) {
       let timerVal = room.turn_timer || 7;
@@ -199,6 +241,76 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
 
   const renderContent = () => {
     if (room.status === 'waiting') {
+      
+      // AAA Matchmaking UI for Random Match Search
+      if (isCasualMatch && !room.player2_id) {
+        const formatTime = (secs: number) => `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`;
+        return (
+          <View className="flex-1">
+            {/* Top Matchmaking Heading */}
+            <View className="absolute top-8 w-full items-center justify-center z-20" pointerEvents="none">
+               <Text className="text-4xl font-black text-white uppercase italic tracking-[0.2em]" style={{ textShadowColor: 'rgba(34,211,238,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 25 }}>MATCHMAKING...</Text>
+            </View>
+
+            {/* Bottom Matchmaking Controls */}
+            <View className="absolute bottom-6 w-full items-center justify-center z-20" pointerEvents="box-none">
+               <View className="bg-cyan-500/20 px-6 py-2 rounded-full border border-cyan-400/50 mb-3 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)] pointerEvents-none">
+                 <Text className="text-cyan-100 font-black text-xs tracking-[0.2em]">QUEUE TIME: {formatTime(searchTime)}</Text>
+               </View>
+               <TouchableOpacity onPress={onExit} className="px-8 py-2.5 rounded-full border-2 border-red-500/80 bg-red-500/20 active:scale-95 shadow-[0_0_15px_rgba(239,68,68,0.3)] backdrop-blur-md">
+                 <Text className="text-red-100 font-black text-xs uppercase tracking-widest">CANCEL QUEUE</Text>
+               </TouchableOpacity>
+            </View>
+
+            {/* Center Player Row */}
+            <View className="flex-1 flex-row items-center justify-between px-16 w-full z-10" pointerEvents="box-none">
+              
+              {/* Left Player */}
+              <View className="items-center pointer-events-auto">
+                 <View className="w-24 h-24 bg-slate-800 rounded-[2rem] border-2 border-slate-500 items-center justify-center overflow-hidden mb-3 shadow-2xl">
+                   <Text className="text-4xl">👤</Text>
+                 </View>
+                 <Text className="text-white font-black text-lg uppercase tracking-wider" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }}>{myName}</Text>
+                 <Text className="text-cyan-400 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">You</Text>
+              </View>
+              
+              {/* Center Area */}
+              <View className="items-center justify-center pointer-events-auto">
+                 {/* Breathing Glow Aura behind VS */}
+                 <Animated.View style={{
+                   position: 'absolute',
+                   width: 150,
+                   height: 150,
+                   borderRadius: 100,
+                   backgroundColor: 'rgba(234,179,8,0.05)',
+                   shadowColor: 'rgba(234,179,8,1)',
+                   shadowOffset: { width: 0, height: 0 },
+                   shadowRadius: 50,
+                   shadowOpacity: 0.8,
+                   elevation: 20,
+                   transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.5, 1] }) }],
+                   opacity: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1, 0.3] })
+                 }} />
+                 
+                 <Text className="text-5xl font-black text-transparent uppercase italic tracking-widest" style={{ color: '#facc15', textShadowColor: 'rgba(234,179,8,0.8)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 20 }}>VS</Text>
+              </View>
+
+            {/* Right Player (Searching) */}
+            <View className="items-center">
+               <Animated.View style={{
+                 transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.08, 1] }) }]
+               }} className="w-24 h-24 bg-slate-900 rounded-[2rem] border-2 border-dashed border-cyan-500/80 items-center justify-center overflow-hidden mb-3 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+                 <Text className="text-4xl opacity-50">❓</Text>
+               </Animated.View>
+               <Text className="text-cyan-400 font-black text-xs uppercase tracking-wider" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }}>Waiting For</Text>
+               <Text className="text-cyan-500/80 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">Opponent</Text>
+            </View>
+            </View>
+          </View>
+        );
+      }
+
+      // Normal Room Lobby
       return (
         <View className="space-y-6">
         {!isCasualMatch && (
@@ -523,26 +635,38 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   if (room.status === 'toss_call') {
     const isCaller = playerId === room.current_batsman;
     return (
-      <View className="space-y-6">
-        <Scoreboard room={room} playerId={playerId} />
-        <View className="bg-white/10 p-6 rounded-3xl items-center">
-          <Text className="text-2xl font-black text-yellow-300 uppercase text-center mb-6">
-            {room.stage === 'team_toss' ? 'Team Selection Toss!' : 'Match Toss Time!'}
+      <View className="flex-1">
+        <View className="absolute top-0 w-full z-20" pointerEvents="box-none">
+          <Scoreboard room={room} playerId={playerId} />
+        </View>
+
+        <View className="flex-1 items-center justify-center z-10 w-full px-12 mt-20" pointerEvents="box-none">
+          <Text className="text-4xl font-black text-transparent uppercase italic tracking-widest mb-2" style={{ color: '#facc15', textShadowColor: 'rgba(234,179,8,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>
+            {room.stage === 'team_toss' ? 'Team Selection Toss' : 'Match Toss'}
           </Text>
-          <Text className="text-xl font-bold text-white uppercase text-center mb-6">
-            {isCaller ? 'Call the Toss!' : 'Opponent is calling...'}
+          <Text className="text-white text-lg font-bold uppercase tracking-widest mb-12 opacity-80">
+            {isCaller ? 'Call the Coin' : 'Opponent is Calling...'}
           </Text>
+
           {isCaller ? (
-            <View className="flex-row gap-4 w-full">
-              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'head' })} className="flex-1 bg-yellow-400 py-4 rounded-2xl">
-                <Text className="text-indigo-900 font-black text-xl text-center">HEADS</Text>
+            <View className="flex-row justify-center gap-16 w-full">
+              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'head' })} className="w-40 h-40 bg-cyan-950/80 rounded-full items-center justify-center border-4 border-cyan-400 active:scale-95 shadow-[0_0_50px_rgba(34,211,238,0.4)] backdrop-blur-md">
+                <Text className="text-5xl mb-2" style={{ textShadowColor: 'rgba(34,211,238,0.8)', textShadowRadius: 20 }}>🦅</Text>
+                <Text className="text-cyan-200 font-black text-xl uppercase tracking-widest">Heads</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'tail' })} className="flex-1 bg-yellow-400 py-4 rounded-2xl">
-                <Text className="text-indigo-900 font-black text-xl text-center">TAILS</Text>
+              
+              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'tail' })} className="w-40 h-40 bg-purple-950/80 rounded-full items-center justify-center border-4 border-purple-400 active:scale-95 shadow-[0_0_50px_rgba(168,85,247,0.4)] backdrop-blur-md">
+                <Text className="text-5xl mb-2" style={{ textShadowColor: 'rgba(168,85,247,0.8)', textShadowRadius: 20 }}>🦁</Text>
+                <Text className="text-purple-200 font-black text-xl uppercase tracking-widest">Tails</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <Text className="text-white/50 font-bold animate-pulse">Waiting for opponent...</Text>
+            <View className="items-center mt-6">
+              <View className="w-32 h-32 bg-slate-900/80 rounded-full border-4 border-slate-500 items-center justify-center mb-6 shadow-[0_0_30px_rgba(100,116,139,0.3)]">
+                <Text className="text-5xl opacity-20">❓</Text>
+              </View>
+              <Text className="text-white/50 font-black text-sm uppercase tracking-widest">Awaiting Call</Text>
+            </View>
           )}
         </View>
       </View>
@@ -553,17 +677,30 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   if (room.status === 'toss_throw') {
     const isCaller = playerId === room.current_batsman;
     return (
-      <View className="space-y-6">
-        <Scoreboard room={room} playerId={playerId} />
-        <View className="bg-white/10 p-6 rounded-3xl items-center">
-          <Text className="text-2xl font-black text-white uppercase text-center mb-2">Toss Time!</Text>
-          <Text className="text-yellow-300 font-bold mb-6">
+      <View className="flex-1">
+        <View className="absolute top-0 w-full z-20" pointerEvents="box-none">
+          <Scoreboard room={room} playerId={playerId} />
+        </View>
+
+        <View className="flex-1 items-center justify-center z-10 w-full mt-20" pointerEvents="box-none">
+          <Text className="text-4xl font-black text-transparent uppercase italic tracking-widest mb-1" style={{ color: '#22d3ee', textShadowColor: 'rgba(34,211,238,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>
+            Toss Throw
+          </Text>
+          <Text className="text-yellow-400 text-sm font-bold uppercase tracking-widest mb-8">
             {isCaller ? `You called ${room.toss_call?.toUpperCase()}` : `They called ${room.toss_call?.toUpperCase()}`}
           </Text>
+          
           {myThrowInPlay ? (
-            <Text className="text-white font-bold opacity-50">Waiting for opponent...</Text>
+             <View className="mt-10 items-center">
+               <View className="w-32 h-32 bg-green-950/80 rounded-full border-4 border-green-500 items-center justify-center mb-6 shadow-[0_0_50px_rgba(34,197,94,0.3)] backdrop-blur-md">
+                 <Text className="text-6xl text-green-400" style={{ textShadowColor: 'rgba(34,197,94,0.8)', textShadowRadius: 20 }}>✓</Text>
+               </View>
+               <Text className="text-green-400 font-bold uppercase tracking-widest text-sm">Throw Locked</Text>
+             </View>
           ) : (
-            <HandSelector maxFingers={5} disabled={loading} onSelect={(num) => takeAction({ type: 'THROW', fingers: num })} />
+             <View className="bg-black/60 p-8 rounded-[3rem] border border-cyan-500/30 backdrop-blur-md items-center shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+               <HandSelector maxFingers={5} disabled={loading} onSelect={(num) => takeAction({ type: 'THROW', fingers: num })} />
+             </View>
           )}
         </View>
       </View>
@@ -734,28 +871,33 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   };
 
   return (
-    <View className="flex-1">
-      <View className="absolute top-0 left-0 z-50">
-        <TouchableOpacity onPress={handleExit} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-red-500/80 border-red-400/50">
-          <Text className="text-lg text-white font-bold">X</Text>
-        </TouchableOpacity>
-      </View>
-      <View className="absolute top-0 right-0 z-50 flex-row gap-2">
-        <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
-          <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? 'bg-blue-500 border-blue-400' : 'bg-gray-500/80 border-gray-400/50'}`}>
-          <Text className="text-lg">{speakerEnabled ? '🔊' : '🔈'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setChatOpen(true)} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-indigo-500 border-indigo-400 relative">
-          <Text className="text-lg">💬</Text>
-          {messages && messages.length > 0 && !chatOpen && (
-            <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center">
-              <Text className="text-white text-[8px] font-bold">{messages.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+    <Animated.View className="flex-1 bg-black" style={{ opacity: entryAnim }}>
+      <GameRoomBackground />
+      {!isSearchingMatch && (
+        <>
+          <View className="absolute top-0 left-0 z-50">
+            <TouchableOpacity onPress={handleExit} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-red-500/80 border-red-400/50">
+              <Text className="text-lg text-white font-bold">X</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="absolute top-0 right-0 z-50 flex-row gap-2">
+            <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
+              <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? 'bg-blue-500 border-blue-400' : 'bg-gray-500/80 border-gray-400/50'}`}>
+              <Text className="text-lg">{speakerEnabled ? '🔊' : '🔈'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setChatOpen(true)} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-indigo-500 border-indigo-400 relative">
+              <Text className="text-lg">💬</Text>
+              {messages && messages.length > 0 && !chatOpen && (
+                <View className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full items-center justify-center">
+                  <Text className="text-white text-[8px] font-bold">{messages.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
       {renderContent()}
 
       {activeEmote && (
@@ -871,6 +1013,6 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </Animated.View>
   );
 }
