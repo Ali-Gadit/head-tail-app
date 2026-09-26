@@ -3,7 +3,7 @@ import { TouchableOpacity, Text } from 'react-native';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 export default function BackgroundMusic({ enabled = true }: { enabled?: boolean }) {
-  const player = useAudioPlayer(require('../../assets/bgm.mp3'));
+  const player = useAudioPlayer(require('../../assets/one-more-game.mp3'));
 
   useEffect(() => {
     setAudioModeAsync({

@@ -3,6 +3,7 @@ import OfflineApp from './OfflineApp';
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal, Animated, PanResponder } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { NavigationBar } from 'expo-navigation-bar';
 import { AuthProvider, useAuth } from './src/components/AuthProvider';
@@ -116,6 +117,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
   const [isCasualMode, setIsCasualMode] = useState(false);
   const [showCoinShop, setShowCoinShop] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
@@ -195,7 +197,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
   };
 
   const findCasualMatch = async () => {
-    setLoading(true);
+    setLoadingAction('casual');
     try {
       const result = await api.findMatch(user!.id, profile?.username || 'Player');
       setIsCasualMode(true);
@@ -205,12 +207,12 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     } catch (err: any) {
       setNotification({ title: 'Error', message: err.message });
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const startMatch = async (isBot: boolean) => {
-    setLoading(true);
+    setLoadingAction(isBot ? 'bot' : 'host');
     try {
       const result = await api.createRoom({ 
         name: profile?.username || 'Player', 
@@ -226,13 +228,13 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     } catch (err: any) {
       setNotification({ title: 'Error', message: err.message });
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const joinPrivateRoom = async () => {
     if (!code) return;
-    setLoading(true);
+    setLoadingAction('join');
     try {
       const result = await api.joinRoom({ 
         code: code.toUpperCase(), 
@@ -246,7 +248,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
     } catch (err: any) {
       setNotification({ title: 'Error', message: err.message });
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -522,75 +524,104 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       </Animated.View>
 
       {/* Game Modes Modal */}
-      <Modal visible={showGameModes} animationType="fade" transparent onRequestClose={() => setShowGameModes(false)}>
-        <View className="flex-1 bg-black/80 justify-center items-center p-4">
-          <View className="w-full max-w-5xl">
-            <View className="flex-row justify-between items-center mb-8 px-4">
-              <Text className="text-3xl font-black text-white uppercase tracking-widest">Game Modes</Text>
-              <TouchableOpacity onPress={() => setShowGameModes(false)} className="w-10 h-10 bg-white/10 rounded-full items-center justify-center active:scale-95">
-                <Text className="text-white font-bold text-lg">✕</Text>
+      <Modal visible={showGameModes} animationType="slide" transparent onRequestClose={() => setShowGameModes(false)}>
+        <View className="flex-1 bg-black/95 justify-center items-center">
+          <View className="absolute inset-0 bg-indigo-900/10" />
+          
+          <View className="w-full max-w-5xl z-10 py-4">
+            <View className="flex-row justify-between items-center mb-4 px-8 mt-2">
+              <View>
+                <Text className="text-3xl font-black text-transparent tracking-widest uppercase italic" style={{ color: '#fff', textShadowColor: 'rgba(255,255,255,0.5)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>Game Modes</Text>
+                <Text className="text-cyan-400 font-bold text-[9px] tracking-[0.3em] uppercase mt-1">Two sides. One winner.</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowGameModes(false)} className="w-10 h-10 bg-white/10 rounded-full items-center justify-center border border-white/20 active:scale-95">
+                <Text className="text-white font-black text-lg" style={{ includeFontPadding: false, textAlignVertical: 'center' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }} className="w-full">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24, gap: 16 }} className="w-full pb-4 pt-2">
               
               {/* Card 1: Random Match */}
-              <TouchableOpacity onPress={findCasualMatch} disabled={loading} className="w-56 h-72 bg-green-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-green-700 active:scale-95">
-                <View>
-                  <Text className="text-4xl mb-4">🌍</Text>
-                  <Text className="text-xl font-black text-white tracking-widest uppercase">Random Match</Text>
-                  <Text className="text-green-100 font-bold mt-2 text-sm leading-tight">Play instantly against someone online.</Text>
+              <TouchableOpacity onPress={findCasualMatch} disabled={loadingAction !== null} className="w-56 h-64 bg-slate-900 rounded-[2rem] p-5 shadow-2xl justify-between border-2 border-green-500/40 active:scale-95 overflow-hidden relative">
+                <View className="absolute inset-0 bg-green-500/10" />
+                
+                <View className="z-10">
+                  <View className="w-10 h-10 bg-green-500/20 rounded-xl items-center justify-center border border-green-500/30 mb-3">
+                    <FontAwesome5 name="globe-americas" size={18} color="#4ade80" />
+                  </View>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Random</Text>
+                  <Text className="text-xl font-black text-green-400 tracking-widest uppercase -mt-1">Match</Text>
+                  <Text className="text-green-200/60 font-bold mt-2 text-[10px] leading-4">Play instantly against a random challenger online.</Text>
                 </View>
-                <View className="bg-black/20 rounded-xl py-3 items-center">
-                  <Text className="text-white font-black uppercase tracking-wider text-sm">{loading ? 'Searching...' : 'Play Now'}</Text>
+                
+                <View className="bg-green-500 rounded-xl py-3 items-center shadow-[0_0_15px_rgba(34,197,94,0.4)] z-10">
+                  <Text className="text-white font-black uppercase tracking-wider text-xs">{loadingAction === 'casual' ? 'Searching...' : 'Find Match'}</Text>
                 </View>
               </TouchableOpacity>
 
               {/* Card 2: VS Computer */}
-              <TouchableOpacity onPress={() => startMatch(true)} disabled={loading} className="w-56 h-72 bg-blue-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-blue-700 active:scale-95">
-                <View>
-                  <Text className="text-4xl mb-4">🤖</Text>
-                  <Text className="text-xl font-black text-white tracking-widest uppercase">VS Computer</Text>
-                  <Text className="text-blue-100 font-bold mt-2 text-sm leading-tight">Practice offline against the AI.</Text>
+              <TouchableOpacity onPress={() => startMatch(true)} disabled={loadingAction !== null} className="w-56 h-64 bg-slate-900 rounded-[2rem] p-5 shadow-2xl justify-between border-2 border-cyan-500/40 active:scale-95 overflow-hidden relative">
+                <View className="absolute inset-0 bg-cyan-500/10" />
+                
+                <View className="z-10">
+                  <View className="w-10 h-10 bg-cyan-500/20 rounded-xl items-center justify-center border border-cyan-500/30 mb-3">
+                    <FontAwesome5 name="robot" size={18} color="#22d3ee" />
+                  </View>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Vs</Text>
+                  <Text className="text-xl font-black text-cyan-400 tracking-widest uppercase -mt-1">Computer</Text>
+                  <Text className="text-cyan-200/60 font-bold mt-2 text-[10px] leading-4">Practice offline against the elite AI system.</Text>
                 </View>
-                <View className="bg-black/20 rounded-xl py-3 items-center">
-                  <Text className="text-white font-black uppercase tracking-wider text-sm">{loading ? 'Creating...' : 'Play Bot'}</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Card 3: Create Private Room */}
-              <TouchableOpacity onPress={() => startMatch(false)} disabled={loading} className="w-56 h-72 bg-yellow-400 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-yellow-600 active:scale-95">
-                <View>
-                  <Text className="text-4xl mb-4">🎟️</Text>
-                  <Text className="text-xl font-black text-indigo-900 tracking-widest uppercase">Private Room</Text>
-                  <Text className="text-indigo-900/70 font-bold mt-2 text-sm leading-tight">Host a match for a friend.</Text>
-                </View>
-                <View className="bg-black/10 rounded-xl py-3 items-center">
-                  <Text className="text-indigo-900 font-black uppercase tracking-wider text-sm">{loading ? 'Creating...' : 'Host Room'}</Text>
+                
+                <View className="bg-cyan-500 rounded-xl py-3 items-center shadow-[0_0_15px_rgba(6,182,212,0.4)] z-10">
+                  <Text className="text-white font-black uppercase tracking-wider text-xs">{loadingAction === 'bot' ? 'Initializing...' : 'Start Match'}</Text>
                 </View>
               </TouchableOpacity>
 
-              {/* Card 4: Join Private Room */}
-              <View className="w-56 h-72 bg-purple-500 rounded-[2rem] p-6 shadow-2xl justify-between border-b-8 border-purple-700">
-                <View>
-                  <Text className="text-4xl mb-4">🔑</Text>
-                  <Text className="text-xl font-black text-white tracking-widest uppercase">Private Room</Text>
-                  <Text className="text-purple-100 font-bold mt-2 text-sm leading-tight">Enter a room code to play.</Text>
+              {/* Card 3: Host Room */}
+              <TouchableOpacity onPress={() => startMatch(false)} disabled={loadingAction !== null} className="w-56 h-64 bg-slate-900 rounded-[2rem] p-5 shadow-2xl justify-between border-2 border-yellow-500/40 active:scale-95 overflow-hidden relative">
+                <View className="absolute inset-0 bg-yellow-500/10" />
+                
+                <View className="z-10">
+                  <View className="w-10 h-10 bg-yellow-500/20 rounded-xl items-center justify-center border border-yellow-500/30 mb-3">
+                    <FontAwesome5 name="ticket-alt" size={18} color="#facc15" />
+                  </View>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Host</Text>
+                  <Text className="text-xl font-black text-yellow-400 tracking-widest uppercase -mt-1">Room</Text>
+                  <Text className="text-yellow-200/60 font-bold mt-2 text-[10px] leading-4">Create a private arena using your tickets.</Text>
                 </View>
-                <View className="gap-2">
-                  <TextInput
-                    value={code}
-                    onChangeText={setCode}
-                    placeholder="000000"
-                    placeholderTextColor="rgba(255,255,255,0.4)"
-                    className="w-full bg-black/20 rounded-xl py-3 px-2 text-center text-xl font-black font-mono text-white tracking-[0.2em]"
-                    maxLength={6}
-                    keyboardType="numeric"
-                  />
-                  <TouchableOpacity onPress={joinPrivateRoom} disabled={loading || !code} className="bg-white rounded-xl py-3 items-center active:scale-95 disabled:opacity-50">
-                    <Text className="text-purple-700 font-black uppercase tracking-wider text-sm">{loading ? 'Joining...' : 'Join'}</Text>
-                  </TouchableOpacity>
+                
+                <View className="bg-yellow-500 rounded-xl py-3 items-center shadow-[0_0_15px_rgba(234,179,8,0.4)] z-10">
+                  <Text className="text-slate-900 font-black uppercase tracking-wider text-xs">{loadingAction === 'host' ? 'Creating...' : 'Host Room'}</Text>
                 </View>
+              </TouchableOpacity>
+
+              {/* Card 4: Join Room */}
+              <View className="w-56 h-64 bg-slate-900 rounded-[2rem] p-5 shadow-2xl justify-between border-2 border-purple-500/40 overflow-hidden relative">
+                <View className="absolute inset-0 bg-purple-500/10" />
+                
+                <View className="z-10">
+                  <View className="w-10 h-10 bg-purple-500/20 rounded-xl items-center justify-center border border-purple-500/30 mb-3">
+                    <FontAwesome5 name="key" size={18} color="#c084fc" />
+                  </View>
+                  <Text className="text-xl font-black text-white tracking-widest uppercase">Join</Text>
+                  <Text className="text-xl font-black text-purple-400 tracking-widest uppercase -mt-1">Room</Text>
+                  
+                  <View className="mt-2">
+                    <TextInput
+                      value={code}
+                      onChangeText={setCode}
+                      placeholder="CODE"
+                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      className="w-full bg-black/40 rounded-lg py-1.5 px-2 text-center text-base font-black font-mono text-purple-100 tracking-[0.3em] border border-purple-500/20"
+                      maxLength={6}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+                
+                <TouchableOpacity onPress={joinPrivateRoom} disabled={loadingAction !== null || !code || code.length !== 6} className="bg-purple-600 rounded-xl py-3 items-center shadow-[0_0_15px_rgba(147,51,234,0.4)] z-10 active:scale-95 disabled:opacity-40">
+                  <Text className="text-white font-black uppercase tracking-wider text-xs">{loadingAction === 'join' ? 'Joining...' : 'Enter Arena'}</Text>
+                </TouchableOpacity>
               </View>
 
             </ScrollView>
