@@ -26,10 +26,10 @@ export default function LoadingScreen({ isReady, onComplete }: { isReady: boolea
   useEffect(() => {
     if (isReady && !isFinished.current) {
       isFinished.current = true;
-      // When the app signals it's ready, rapidly fill to 100%
+      // If it's ready, rapidly fill to 100% (but give it at least 1 second if it just mounted)
       Animated.timing(progressAnim, {
         toValue: 100,
-        duration: 400,
+        duration: 1000,
         useNativeDriver: false,
       }).start(() => {
         // Hold at 100% for a split second so the user registers it, then launch the game!

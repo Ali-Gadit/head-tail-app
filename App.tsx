@@ -1,6 +1,6 @@
 import "./global.css";
 import OfflineApp from './OfflineApp';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TextInput, TouchableOpacity, Alert, SafeAreaView, ScrollView, Platform, Modal, Animated, PanResponder } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -603,11 +603,26 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
 
 function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
   const { user, loading } = useAuth();
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const [showInitialLoading, setShowInitialLoading] = useState(true);
+  const [showTransition, setShowTransition] = useState(false);
+  const prevUserRef = useRef(user);
+
+  useEffect(() => {
+    // If user goes from null to authenticated, trigger a transition loading screen
+    if (!prevUserRef.current && user && !showInitialLoading) {
+      setShowTransition(true);
+    }
+    prevUserRef.current = user;
+  }, [user, showInitialLoading]);
   
-  // The loading screen stays alive until it guarantees the progress bar hits 100%
-  if (showLoadingScreen) {
-    return <LoadingScreen isReady={!loading} onComplete={() => setShowLoadingScreen(false)} />;
+  if (showInitialLoading) {
+    return <LoadingScreen isReady={!loading} onComplete={() => setShowInitialLoading(false)} />;
+  }
+
+  if (showTransition) {
+    // We already know they are authenticated, so isReady is true. 
+    // The loading screen will take exactly 1 second to fill to 100% and then reveal the dashboard.
+    return <LoadingScreen isReady={true} onComplete={() => setShowTransition(false)} />;
   }
 
   if (user) {

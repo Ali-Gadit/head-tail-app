@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ImageBackground, Image, Keyboard } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 GoogleSignin.configure({
   webClientId: '274890853737-3jtpgphnqqljembf1odvoav9vnapo5af.apps.googleusercontent.com',
@@ -12,11 +13,19 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
+  // We'll determine this on mount based on their history
+  const [isLogin, setIsLogin] = useState(true); 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    // If they have never logged in before, default to Sign Up
+    AsyncStorage.getItem('has_logged_in_before').then((val) => {
+      if (!val) setIsLogin(false);
+    });
+  }, []);
 
   const signInWithGoogle = async () => {
     setErrorMessage('');
@@ -35,6 +44,7 @@ export default function Auth() {
           token: userInfo.data.idToken,
         });
         if (error) throw error;
+        await AsyncStorage.setItem('has_logged_in_before', 'true');
       } else {
         throw new Error('Authentication was cancelled or failed.');
       }
@@ -70,9 +80,11 @@ export default function Auth() {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await AsyncStorage.setItem('has_logged_in_before', 'true');
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        await AsyncStorage.setItem('has_logged_in_before', 'true');
         
         if (data.session) {
           // If auto-login is enabled in Supabase, the user is already logged in.
