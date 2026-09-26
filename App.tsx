@@ -410,7 +410,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
                 <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-black/40 rounded-full pl-3 pr-1.5 py-1 flex-row items-center border border-yellow-500/20 active:scale-95 shadow-xl">
                   <Text className="text-yellow-400 font-black text-[11px] tracking-wider mr-2">🪙 {profile.coins || 0}</Text>
                   <View className="bg-yellow-400/20 rounded-full w-[18px] h-[18px] items-center justify-center border border-yellow-400/30">
-                    <Text className="text-yellow-400 font-bold text-[13px] leading-[13px] mt-[1px]">+</Text>
+                    <Text className="text-yellow-400 font-bold text-[14px]" style={{ includeFontPadding: false, textAlignVertical: 'center', lineHeight: 15 }}>+</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -423,7 +423,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
                 <TouchableOpacity onPress={() => setShowCoinShop(true)} className="bg-black/40 rounded-full pl-3 pr-1.5 py-1 flex-row items-center border border-slate-300/20 active:scale-95 shadow-xl">
                   <Text className="text-slate-200 font-black text-[11px] tracking-wider mr-2">🎟️ {profile.private_room_tokens || 0}</Text>
                   <View className="bg-slate-300/20 rounded-full w-[18px] h-[18px] items-center justify-center border border-slate-300/30">
-                    <Text className="text-white font-bold text-[13px] leading-[13px] mt-[1px]">+</Text>
+                    <Text className="text-white font-bold text-[14px]" style={{ includeFontPadding: false, textAlignVertical: 'center', lineHeight: 15 }}>+</Text>
                   </View>
                 </TouchableOpacity>
 
