@@ -127,7 +127,7 @@ export default function Auth() {
           <View className="items-center mb-4">
             <Text 
               className="text-3xl font-black text-white tracking-widest uppercase"
-              style={{ textShadowColor: 'rgba(250,204,21,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}
+              
             >
               {isLogin ? 'LOG IN' : 'SIGN UP'}
             </Text>

@@ -17,6 +17,7 @@ interface GameRoomProps {
   playerId: string;
   onExit: () => void;
   onAction?: (action: UserAction | { type: 'EXIT_GAME' }) => Promise<void>;
+  onUpdateRoom?: (room: Room) => void;
   initialEditMode?: boolean;
   isCasualMatch?: boolean;
 }
@@ -66,7 +67,7 @@ const EMOTES = [
   { id: 'rose', icon: '🌹' },
 ];
 
-export default function GameRoom({ room, playerId, onExit, onAction, initialEditMode, isCasualMatch: isCasualMatchProp }: GameRoomProps) {
+export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoom, initialEditMode, isCasualMatch: isCasualMatchProp }: GameRoomProps) {
   const isCasualMatch = isCasualMatchProp ?? (room.bet_amount === 0 && !room.is_ranked && room.is_public === true);
   const isBotMatch = room.player2_id === '00000000-0000-0000-0000-000000000000';
 
@@ -213,21 +214,21 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
     ]);
   };
 
-  const takeAction = async (action: UserAction) => {
+  const takeAction = async (action: UserAction) => { console.log('[GameRoom.takeAction] Started with action:', action);
     setLoading(true);
     try {
       if (action.type === 'THROW') {
         setMyThrowInPlay(action.fingers);
       }
       if (onAction) await onAction(action);
-      else await api.takeAction(room.id, playerId, action);
+      else { const updatedRoom = await api.takeAction(room.id, playerId, action); if (onUpdateRoom) onUpdateRoom(updatedRoom); }
       if (action.type === 'CONTINUE' || action.type === 'PLAY_AGAIN') {
         setMyThrowInPlay(null);
       }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to take action');
+    } catch (err: any) { console.error('[GameRoom.takeAction] Error caught:', err);
+      console.error('takeAction error:', err); Alert.alert('Error', err.message || 'Failed to take action');
       setMyThrowInPlay(null);
-    } finally {
+    } finally { console.log('[GameRoom.takeAction] Finally block reached, setting loading false');
       setLoading(false);
     }
   };
@@ -239,7 +240,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   const isP3 = playerId === room.player3_id;
   const isHost = isP1;
 
-  const renderContent = () => {
+  const renderContent = () => { console.log('[GameRoom] renderContent called, room.status =', room.status);
     if (room.status === 'waiting') {
       
       // AAA Matchmaking UI for Random Match Search
@@ -249,15 +250,15 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
           <View className="flex-1">
             {/* Top Matchmaking Heading */}
             <View className="absolute top-8 w-full items-center justify-center z-20" pointerEvents="none">
-               <Text className="text-4xl font-black text-white uppercase italic tracking-[0.2em]" style={{ textShadowColor: 'rgba(34,211,238,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 25 }}>MATCHMAKING...</Text>
+               <Text className="text-4xl font-black text-white uppercase italic tracking-[0.2em]">MATCHMAKING...</Text>
             </View>
 
             {/* Bottom Matchmaking Controls */}
             <View className="absolute bottom-6 w-full items-center justify-center z-20" pointerEvents="box-none">
-               <View className="bg-cyan-500/20 px-6 py-2 rounded-full border border-cyan-400/50 mb-3 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.3)] pointerEvents-none">
+               <View className="bg-cyan-500/20 px-6 py-2 rounded-full border border-cyan-400/50 mb-3   pointerEvents-none">
                  <Text className="text-cyan-100 font-black text-xs tracking-[0.2em]">QUEUE TIME: {formatTime(searchTime)}</Text>
                </View>
-               <TouchableOpacity onPress={onExit} className="px-8 py-2.5 rounded-full border-2 border-red-500/80 bg-red-500/20 active:scale-95 shadow-[0_0_15px_rgba(239,68,68,0.3)] backdrop-blur-md">
+               <TouchableOpacity onPress={onExit} className="px-8 py-2.5 rounded-full border-2 border-red-500/80 bg-red-500/20 active:scale-95  ">
                  <Text className="text-red-100 font-black text-xs uppercase tracking-widest">CANCEL QUEUE</Text>
                </TouchableOpacity>
             </View>
@@ -270,7 +271,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
                  <View className="w-24 h-24 bg-slate-800 rounded-[2rem] border-2 border-slate-500 items-center justify-center overflow-hidden mb-3 shadow-2xl">
                    <Text className="text-4xl">👤</Text>
                  </View>
-                 <Text className="text-white font-black text-lg uppercase tracking-wider" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }}>{myName}</Text>
+                 <Text className="text-white font-black text-lg uppercase tracking-wider" >{myName}</Text>
                  <Text className="text-cyan-400 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">You</Text>
               </View>
               
@@ -292,7 +293,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
                    opacity: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1, 0.3] })
                  }} />
                  
-                 <Text className="text-5xl font-black text-transparent uppercase italic tracking-widest" style={{ color: '#facc15', textShadowColor: 'rgba(234,179,8,0.8)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 20 }}>VS</Text>
+                 <Text className="text-5xl font-black uppercase italic tracking-widest text-yellow-400">VS</Text>
               </View>
 
             {/* Right Player (Searching) */}
@@ -302,7 +303,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
                }} className="w-24 h-24 bg-slate-900 rounded-[2rem] border-2 border-dashed border-cyan-500/80 items-center justify-center overflow-hidden mb-3 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
                  <Text className="text-4xl opacity-50">❓</Text>
                </Animated.View>
-               <Text className="text-cyan-400 font-black text-xs uppercase tracking-wider" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }}>Waiting For</Text>
+               <Text className="text-cyan-400 font-black text-xs uppercase tracking-wider" >Waiting For</Text>
                <Text className="text-cyan-500/80 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">Opponent</Text>
             </View>
             </View>
@@ -641,7 +642,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
         </View>
 
         <View className="flex-1 items-center justify-center z-10 w-full px-12 mt-20" pointerEvents="box-none">
-          <Text className="text-4xl font-black text-transparent uppercase italic tracking-widest mb-2" style={{ color: '#facc15', textShadowColor: 'rgba(234,179,8,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>
+          <Text className="text-4xl font-black uppercase italic tracking-widest mb-2 text-yellow-400">
             {room.stage === 'team_toss' ? 'Team Selection Toss' : 'Match Toss'}
           </Text>
           <Text className="text-white text-lg font-bold uppercase tracking-widest mb-12 opacity-80">
@@ -649,23 +650,30 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
           </Text>
 
           {isCaller ? (
-            <View className="flex-row justify-center gap-16 w-full">
-              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'head' })} className="w-40 h-40 bg-cyan-950/80 rounded-full items-center justify-center border-4 border-cyan-400 active:scale-95 shadow-[0_0_50px_rgba(34,211,238,0.4)] backdrop-blur-md">
-                <Text className="text-5xl mb-2" style={{ textShadowColor: 'rgba(34,211,238,0.8)', textShadowRadius: 20 }}>🦅</Text>
-                <Text className="text-cyan-200 font-black text-xl uppercase tracking-widest">Heads</Text>
+            <View className="flex-row justify-between w-full max-w-sm px-8">
+              <TouchableOpacity 
+                disabled={loading} 
+                onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'head' })} 
+                className={`w-32 h-32 rounded-full bg-yellow-500 items-center justify-center border-4 border-yellow-600 ${loading ? 'opacity-50' : 'active:scale-95'}`}
+              >
+                <Text className="text-5xl font-black text-white">H</Text>
+                <Text className="text-sm font-black text-white mt-1">HEADS</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'tail' })} className="w-40 h-40 bg-purple-950/80 rounded-full items-center justify-center border-4 border-purple-400 active:scale-95 shadow-[0_0_50px_rgba(168,85,247,0.4)] backdrop-blur-md">
-                <Text className="text-5xl mb-2" style={{ textShadowColor: 'rgba(168,85,247,0.8)', textShadowRadius: 20 }}>🦁</Text>
-                <Text className="text-purple-200 font-black text-xl uppercase tracking-widest">Tails</Text>
+              <TouchableOpacity 
+                disabled={loading} 
+                onPress={() => takeAction({ type: 'TOSS_CALL', choice: 'tail' })} 
+                className={`w-32 h-32 rounded-full bg-slate-200 items-center justify-center border-4 border-slate-300 ${loading ? 'opacity-50' : 'active:scale-95'}`}
+              >
+                <Text className="text-5xl font-black text-slate-700">T</Text>
+                <Text className="text-sm font-black text-slate-700 mt-1">TAILS</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View className="items-center mt-6">
-              <View className="w-32 h-32 bg-slate-900/80 rounded-full border-4 border-slate-500 items-center justify-center mb-6 shadow-[0_0_30px_rgba(100,116,139,0.3)]">
-                <Text className="text-5xl opacity-20">❓</Text>
+              <View className="w-32 h-32 rounded-full bg-slate-700 items-center justify-center border-4 border-slate-600 animate-pulse">
+                <Text className="text-5xl font-black text-slate-500">?</Text>
               </View>
-              <Text className="text-white/50 font-black text-sm uppercase tracking-widest">Awaiting Call</Text>
+              <Text className="text-white/50 font-black text-sm uppercase tracking-widest animate-pulse mt-4">Awaiting Call...</Text>
             </View>
           )}
         </View>
@@ -674,7 +682,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   }
 
   // TOSS THROW
-  if (room.status === 'toss_throw') {
+  if (room.status === 'toss_throw') { console.log('[GameRoom] Rendering Toss Throw UI');
     const isCaller = playerId === room.current_batsman;
     return (
       <View className="flex-1">
@@ -683,7 +691,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
         </View>
 
         <View className="flex-1 items-center justify-center z-10 w-full mt-20" pointerEvents="box-none">
-          <Text className="text-4xl font-black text-transparent uppercase italic tracking-widest mb-1" style={{ color: '#22d3ee', textShadowColor: 'rgba(34,211,238,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>
+          <Text className="text-4xl font-black uppercase italic tracking-widest mb-1 text-cyan-400">
             Toss Throw
           </Text>
           <Text className="text-yellow-400 text-sm font-bold uppercase tracking-widest mb-8">
@@ -692,13 +700,13 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
           
           {myThrowInPlay ? (
              <View className="mt-10 items-center">
-               <View className="w-32 h-32 bg-green-950/80 rounded-full border-4 border-green-500 items-center justify-center mb-6 shadow-[0_0_50px_rgba(34,197,94,0.3)] backdrop-blur-md">
-                 <Text className="text-6xl text-green-400" style={{ textShadowColor: 'rgba(34,197,94,0.8)', textShadowRadius: 20 }}>✓</Text>
+               <View className="w-32 h-32 bg-green-950/80 rounded-full border-4 border-green-500 items-center justify-center mb-6  ">
+                 <Text className="text-6xl text-green-400">✓</Text>
                </View>
                <Text className="text-green-400 font-bold uppercase tracking-widest text-sm">Throw Locked</Text>
              </View>
           ) : (
-             <View className="bg-black/60 p-8 rounded-[3rem] border border-cyan-500/30 backdrop-blur-md items-center shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+             <View className="bg-black/60 p-8 rounded-[3rem] border border-cyan-500/30  items-center ">
                <HandSelector maxFingers={5} disabled={loading} onSelect={(num) => takeAction({ type: 'THROW', fingers: num })} />
              </View>
           )}
@@ -873,14 +881,14 @@ export default function GameRoom({ room, playerId, onExit, onAction, initialEdit
   return (
     <Animated.View className="flex-1 bg-black" style={{ opacity: entryAnim }}>
       <GameRoomBackground />
-      {!isSearchingMatch && (
+      {(room.status === 'playing' || room.status === 'reveal' || room.status === 'game_over') && (
         <>
-          <View className="absolute top-0 left-0 z-50">
+          <View className="absolute top-0 left-0 z-50 mt-1 ml-1">
             <TouchableOpacity onPress={handleExit} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-red-500/80 border-red-400/50">
               <Text className="text-lg text-white font-bold">X</Text>
             </TouchableOpacity>
           </View>
-          <View className="absolute top-0 right-0 z-50 flex-row gap-2">
+          <View className="absolute top-0 right-0 z-50 flex-row gap-2 mt-1 mr-1">
             <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
               <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>
             </TouchableOpacity>

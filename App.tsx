@@ -204,6 +204,16 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setShowGameModes(false);
       setRoom(result.room);
       setRoomId(result.room.id);
+
+      if (result.isNew) {
+        setTimeout(async () => {
+          try {
+            const englishNames = ['John', 'Michael', 'David', 'James', 'William', 'Robert', 'Joseph', 'Charles', 'Thomas', 'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald', 'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin', 'Samuel'];
+            const randomName = englishNames[Math.floor(Math.random() * englishNames.length)];
+            await api.addBotToRoom(result.room.id, user!.id, randomName);
+          } catch(e) {}
+        }, 60000);
+      }
     } catch (err: any) {
       setNotification({ title: 'Error', message: err.message });
     } finally {
@@ -321,7 +331,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
         <OnboardingModal visible={showOnboarding} onComplete={() => setShowOnboarding(false)} />
         <NotificationManager onJoinRoom={(c) => { setCode(c); joinPrivateRoom(); }} />
         <View className="flex-1">
-          <GameRoom room={room} playerId={user.id} onExit={() => { setRoomId(null); refreshProfile(); }} initialEditMode={isNewRoom} isCasualMatch={isCasualMode} />
+          <GameRoom room={room} playerId={user.id} onUpdateRoom={setRoom} onExit={() => { setRoomId(null); refreshProfile(); }} initialEditMode={isNewRoom} isCasualMatch={isCasualMode} />
         </View>
       </SafeAreaView>
     );
@@ -513,7 +523,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             <View className="mt-10 items-center justify-center animate-pulse">
               <View className="flex-row items-center gap-4">
                 <View className="h-[2px] w-8 bg-yellow-400/30 rounded-full" />
-                <Text className="text-yellow-400 font-black text-lg tracking-[0.3em] uppercase" style={{ textShadowColor: 'rgba(250,204,21,0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
+                <Text className="text-yellow-400 font-black text-lg tracking-[0.3em] uppercase" >
                   Tap to Play
                 </Text>
                 <View className="h-[2px] w-8 bg-yellow-400/30 rounded-full" />
@@ -531,7 +541,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
           <View className="w-full max-w-5xl z-10 py-4">
             <View className="flex-row justify-between items-center mb-4 px-8 mt-2">
               <View>
-                <Text className="text-3xl font-black text-transparent tracking-widest uppercase italic" style={{ color: '#fff', textShadowColor: 'rgba(255,255,255,0.5)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}>Game Modes</Text>
+                <Text className="text-3xl font-black text-transparent tracking-widest uppercase italic" >Game Modes</Text>
                 <Text className="text-cyan-400 font-bold text-[9px] tracking-[0.3em] uppercase mt-1">Two sides. One winner.</Text>
               </View>
               <TouchableOpacity onPress={() => setShowGameModes(false)} className="w-10 h-10 bg-white/10 rounded-full items-center justify-center border border-white/20 active:scale-95">

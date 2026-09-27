@@ -148,10 +148,25 @@ export const api = {
       .limit(1);
 
     if (openRooms && openRooms.length > 0) {
+      const room = openRooms[0];
       const { data: joinedRoom } = await supabase
         .from('rooms')
-        .update({ player2_id: userId, p2_name: name, is_public: false }) // Close the room
-        .eq('id', openRooms[0].id)
+        .update({ 
+          player2_id: userId, 
+          p2_name: name, 
+          is_public: false,
+          status: 'toss_call',
+          stage: 'team_toss',
+          current_batsman: room.player1_id,
+          current_bowler: userId,
+          p1_team: null, p1_players: [],
+          p2_team: null, p2_players: [],
+          p3_team: null, p3_players: [],
+          p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
+          p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
+          p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0
+        }) // Close the room and start automatically
+        .eq('id', room.id)
         .is('player2_id', null)
         .select()
         .single();
@@ -196,7 +211,20 @@ export const api = {
         if (room.player1_id !== userId) {
           const { data: updatedRoom } = await supabase
             .from('rooms')
-            .update({ player2_id: userId, p2_name: name, status: 'toss_call' })
+            .update({ 
+              player2_id: userId, 
+              p2_name: name, 
+              status: 'toss_call',
+              stage: 'team_toss',
+              current_batsman: room.player1_id,
+              current_bowler: userId,
+              p1_team: null, p1_players: [],
+              p2_team: null, p2_players: [],
+              p3_team: null, p3_players: [],
+              p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
+              p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
+              p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0
+            })
             .eq('id', room.id).select().single();
           return { room: updatedRoom, isNew: false };
         } else return { room, isNew: true };
@@ -262,14 +290,23 @@ export const api = {
       return { room: newRoom, isNew: true };
     }
   },
-addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer') => {
+  addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer') => {
     const { data, error } = await supabase
       .from('rooms')
       .update({
         player2_id: BOT_UUID,
         p2_name: botName,
-        is_public: false
-        // Keep status as 'waiting' so host can configure Overs and Wickets
+        is_public: false,
+        status: 'toss_call',
+        stage: 'team_toss',
+        current_batsman: p1Id,
+        current_bowler: BOT_UUID,
+        p1_team: null, p1_players: [],
+        p2_team: null, p2_players: [],
+        p3_team: null, p3_players: [],
+        p1_balls_faced: 0, p2_balls_faced: 0, p3_balls_faced: 0,
+        p1_wickets_lost: 0, p2_wickets_lost: 0, p3_wickets_lost: 0,
+        p1_current_player_index: 0, p2_current_player_index: 0, p3_current_player_index: 0
       })
       .eq('id', roomId)
       .is('player2_id', null)
@@ -314,12 +351,17 @@ addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer')
   },
 
   takeAction: async (roomId: string, playerId: string, action: UserAction) => {
+    console.log('[API.takeAction] Started:', action.type, 'roomId:', roomId, 'playerId:', playerId);
     const { data: room, error: fetchError } = await supabase.from('rooms').select('*').eq('id', roomId).single();
-    if (fetchError || !room) throw new Error('Room not found');
+    if (fetchError || !room) {
+       console.log('[API.takeAction] Fetch error or room not found');
+       throw new Error('Room not found');
+    }
 
     let updates: any = {};
     
     if ((action as any).type === 'EXIT_GAME') {
+      console.log('[API.takeAction] Processing EXIT_GAME');
       let p1 = room.player1_id; let p2 = room.player2_id; let p3 = room.player3_id;
       let n1 = room.p1_name; let n2 = room.p2_name; let n3 = room.p3_name;
       if (playerId === p1) { p1 = null; n1 = null; }
@@ -447,12 +489,21 @@ addBotToRoom: async (roomId: string, p1Id: string, botName: string = 'Computer')
 
     if (Object.keys(updates).length === 0) {
       if (action.type === 'CONTINUE' || action.type === 'PLAY_AGAIN') return room;
+      console.log('[API.takeAction] Error: Invalid action or not your turn');
       throw new Error('Invalid action or not your turn');
     }
 
+    console.log('[API.takeAction] Updates to apply:', updates);
     const { data, error: updateError } = await supabase.from('rooms').update(updates).eq('id', roomId).select().single();
-    if (updateError) throw updateError;
+    
+    if (updateError) {
+       console.log('[API.takeAction] Database Update Error:', updateError);
+       throw updateError;
+    }
+    
+    console.log('[API.takeAction] Database Update Success, handling payout...');
     await handlePayout(updates, data);
+    console.log('[API.takeAction] Finished successfully.');
     return data;
   },
 

@@ -64,7 +64,7 @@ export default function LoadingScreen({ isReady, onComplete }: { isReady: boolea
             textShadowRadius: 15 
           }}
         >
-          HEAD<Text className="text-cyan-400" style={{ textShadowColor: 'rgba(34,211,238,0.5)', textShadowRadius: 15 }}>TAIL</Text>
+          HEAD<Text className="text-cyan-400" >TAIL</Text>
         </Text>
         <Text className="text-white/40 text-xs font-bold tracking-[0.4em] uppercase mt-1">
           The Ultimate Showdown

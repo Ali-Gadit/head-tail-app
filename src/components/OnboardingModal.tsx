@@ -82,7 +82,7 @@ export default function OnboardingModal({ visible, onComplete }: { visible: bool
             </View>
             <Text 
               className="text-2xl font-black text-white tracking-widest uppercase text-center"
-              style={{ textShadowColor: 'rgba(34,211,238,0.9)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 15 }}
+              
             >
               PROFILE SETUP
             </Text>
