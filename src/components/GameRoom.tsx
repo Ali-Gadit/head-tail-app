@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ScrollView, TextInput, Animated, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { createAudioPlayer } from 'expo-audio';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5, Feather } from '@expo/vector-icons';
 import { useChat } from '../hooks/useChat';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { Room, UserAction } from '../lib/types';
@@ -11,6 +11,8 @@ import RevealView from './RevealView';
 import InviteFriends from './InviteFriends';
 import { CRICKET_TEAMS, TEAM_NAMES } from '../lib/teams';
 import { api } from '../lib/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 interface GameRoomProps {
   room: Room;
@@ -245,76 +247,543 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
       
       // AAA Matchmaking UI for Random Match Search
       if (isCasualMatch && !room.player2_id) {
-        const formatTime = (secs: number) => `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`;
+        const formatTime = (secs: number) => {
+          const m = Math.floor(secs / 60).toString().padStart(2, '0');
+          const s = (secs % 60).toString().padStart(2, '0');
+          return `${m} : ${s}`;
+        };
+        
+        const pulseAnim = searchAnim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [0.92, 1.08, 0.92]
+        });
+
+        const loadingBarAnim = searchAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-180, 180]
+        });
+
+        // Moving border color sweep animations
+        const borderBeamPlayer = searchAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-200, 300]
+        });
+
+        const borderBeamOpponent = searchAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [300, -200]
+        });
+
+        const borderGlowPulse = searchAnim.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [0.4, 0.95, 0.4]
+        });
+
         return (
-          <View className="flex-1">
-            {/* Top Matchmaking Heading */}
-            <View className="absolute top-8 w-full items-center justify-center z-20" pointerEvents="none">
-               <View className="bg-indigo-900/60 px-10 py-5 rounded-[2rem] border-4 border-cyan-400 mb-8 items-center shadow-xl">
-                 <Text className="text-4xl font-black text-cyan-400 uppercase italic tracking-[0.3em]">MATCHMAKING</Text>
-                 <View className="h-1.5 w-24 bg-yellow-400 mt-3 rounded-full animate-pulse" />
-               </View>
+          <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            {/* 1. Deep Dark Cricket Background with subtle ambient neon backlighting */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000' }} pointerEvents="none">
+              {/* Dark Stadium Image Layer */}
+              <Image 
+                source={require('../../assets/cricket_stadium_bg.jpg')}
+                style={{ position: 'absolute', width: '100%', height: '100%' }}
+                resizeMode="cover"
+                blurRadius={2}
+              />
+              {/* Dark Gradient Overlay to ensure neon colors pop */}
+              <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(5, 12, 25, 0.65)' }} />
             </View>
 
-            {/* Bottom Matchmaking Controls */}
-            <View className="absolute bottom-6 w-full items-center justify-center z-20" pointerEvents="box-none">
-               <View className="bg-cyan-500/20 px-6 py-2 rounded-full border border-cyan-400/50 mb-3   pointerEvents-none">
-                 <Text className="text-cyan-100 font-black text-xs tracking-[0.2em]">QUEUE TIME: {formatTime(searchTime)}</Text>
-               </View>
-               <TouchableOpacity onPress={onExit} className="px-8 py-2.5 rounded-full border-2 border-red-500/80 bg-red-500/20 active:scale-95  ">
-                 <Text className="text-red-100 font-black text-xs uppercase tracking-widest">CANCEL QUEUE</Text>
-               </TouchableOpacity>
-            </View>
-
-            {/* Center Player Row */}
-            <View className="flex-1 flex-row items-center justify-between px-16 w-full z-10" pointerEvents="box-none">
+            {/* 2. Main Content Container - Perfect Landscape Layout */}
+            <View style={{ flex: 1, justifyContent: 'space-between', paddingTop: 8, paddingBottom: 12, paddingHorizontal: 24 }} pointerEvents="box-none">
               
-              {/* Left Player */}
-              <View className="items-center pointer-events-auto">
-                 <View className="w-24 h-24 bg-slate-800 rounded-[2rem] border-2 border-slate-500 items-center justify-center overflow-hidden mb-3 shadow-2xl">
-                   <Text className="text-4xl">👤</Text>
-                 </View>
-                 <Text className="text-white font-black text-lg uppercase tracking-wider" >{myName}</Text>
-                 <Text className="text-cyan-400 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">You</Text>
-              </View>
-              
-              {/* Center Area */}
-              <View className="items-center justify-center pointer-events-auto">
-                 {/* Breathing Glow Aura behind VS */}
-                 <Animated.View style={{
-                   position: 'absolute',
-                   width: 150,
-                   height: 150,
-                   borderRadius: 100,
-                   backgroundColor: 'rgba(234,179,8,0.05)',
-                   shadowColor: 'rgba(234,179,8,1)',
-                   shadowOffset: { width: 0, height: 0 },
-                   shadowRadius: 50,
-                   shadowOpacity: 0.8,
-                   elevation: 20,
-                   transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.5, 1] }) }],
-                   opacity: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1, 0.3] })
-                 }} />
-                 
-                 <Text className="text-5xl font-black uppercase italic tracking-widest text-yellow-400">VS</Text>
+              {/* --- TOP SECTION: HEADER + MATCHMAKING TITLE & PROGRESS --- */}
+              <View style={{ width: '100%', alignItems: 'center' }} pointerEvents="none">
+                
+                {/* Header Row */}
+                <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  {/* Logo & Brand */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: '#061A3A',
+                      borderWidth: 2,
+                      borderColor: '#00D9FF',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 10,
+                      shadowColor: '#00D9FF',
+                      shadowOpacity: 0.6,
+                      shadowRadius: 8,
+                      elevation: 5
+                    }}>
+                      <FontAwesome5 name="coins" size={15} color="#FFD21F" />
+                    </View>
+                    <View>
+                      <Text style={{ fontStyle: 'italic', fontWeight: '900', fontSize: 17, letterSpacing: 1 }}>
+                        <Text style={{ color: '#F5F7FF' }}>HEAD</Text>
+                        <Text style={{ color: '#00D9FF', marginLeft: 2 }}>TAIL</Text>
+                      </Text>
+                      <Text style={{ color: '#A8B6CC', fontSize: 7, fontWeight: '700', letterSpacing: 2.5, textTransform: 'uppercase', marginTop: 1 }}>
+                        HAND CRICKET
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Right Tagline */}
+                  <View style={{ opacity: 0.85 }}>
+                    <Text style={{ color: '#A8B6CC', fontSize: 9, fontWeight: '700', letterSpacing: 3, textTransform: 'uppercase' }}>
+                      FLIP  ·  PLAY  ·  WIN
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Centered Large Gradient Title - POSITIONED HIGH UP */}
+                <View style={{ alignItems: 'center', marginTop: 0 }}>
+                  <MaskedView
+                    maskElement={
+                      <Text style={{
+                        fontSize: 42,
+                        fontWeight: '900',
+                        fontStyle: 'italic',
+                        letterSpacing: 2,
+                        textAlign: 'center',
+                        backgroundColor: 'transparent'
+                      }}>
+                        MATCHMAKING
+                      </Text>
+                    }
+                  >
+                    <LinearGradient
+                      colors={['#00D9FF', '#0878FF', '#B83CFF']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Text style={{
+                        fontSize: 42,
+                        fontWeight: '900',
+                        fontStyle: 'italic',
+                        letterSpacing: 2,
+                        textAlign: 'center',
+                        opacity: 0
+                      }}>
+                        MATCHMAKING
+                      </Text>
+                    </LinearGradient>
+                  </MaskedView>
+
+                  {/* Subtitle */}
+                  <Text style={{
+                    color: '#A8B6CC',
+                    fontSize: 9.5,
+                    fontWeight: '800',
+                    letterSpacing: 3,
+                    textTransform: 'uppercase',
+                    marginTop: 2,
+                    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 4
+                  }}>
+                    FINDING YOUR OPPONENT...
+                  </Text>
+
+                  {/* Animated Loading Bar */}
+                  <View style={{
+                    width: 220,
+                    height: 10,
+                    backgroundColor: '#061A3A',
+                    borderRadius: 9999,
+                    marginTop: 17,
+                    overflow: 'hidden',
+                    borderWidth: 1.5,
+                    borderColor: 'rgba(0, 217, 255, 0.45)',
+                    shadowColor: '#00D9FF',
+                    shadowOpacity: 0.6,
+                    shadowRadius: 8,
+                    elevation: 4
+                  }}>
+                    <Animated.View
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        width: '100%',
+                        transform: [{ translateX: loadingBarAnim as any }]
+                      }}
+                    >
+                      <LinearGradient
+                        colors={['transparent', '#00D9FF', '#0878FF', '#B83CFF', 'transparent']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
+                  </View>
+                </View>
+
               </View>
 
-            {/* Right Player (Searching) */}
-            <View className="items-center">
-               <Animated.View style={{
-                 transform: [{ scale: searchAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.08, 1] }) }]
-               }} className="w-24 h-24 bg-slate-900 rounded-[2rem] border-2 border-dashed border-cyan-500/80 items-center justify-center overflow-hidden mb-3 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-                 <Text className="text-4xl opacity-50">❓</Text>
-               </Animated.View>
-               <Text className="text-cyan-400 font-black text-xs uppercase tracking-wider" >Waiting For</Text>
-               <Text className="text-cyan-500/80 font-bold text-[10px] uppercase tracking-widest mt-1 bg-black/40 px-3 py-0.5 rounded-full">Opponent</Text>
-            </View>
+              {/* --- MIDDLE: PLAYER CARD  VS  OPPONENT CARD (WITH GENEROUS GAP & MOVING COLOR BORDERS) --- */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                paddingHorizontal: 20,
+                marginVertical: 4
+              }} pointerEvents="box-none">
+                
+                {/* [ PLAYER CARD (YOU) WITH MOVING COLOR BORDER ] */}
+                <View style={{ width: '34%', maxWidth: 245, minWidth: 185, height: 72, position: 'relative' }}>
+
+                  {/* Main Rounded Card Box */}
+                  <View style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(7, 20, 38, 0.88)',
+                    borderWidth: 1.5,
+                    borderColor: '#0878FF',
+                    borderRadius: 18,
+                    paddingLeft: 10,
+                    paddingRight: 16,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    {/* MOVING BORDER COLOR BEAM (ANIMATED LIGHT SWEEP) */}
+                    <Animated.View
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        width: 140,
+                        transform: [{ translateX: borderBeamPlayer as any }],
+                        opacity: 0.8
+                      }}
+                      pointerEvents="none"
+                    >
+                      <LinearGradient
+                        colors={['transparent', 'rgba(8, 120, 255, 0.4)', 'rgba(0, 217, 255, 0.9)', 'transparent']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
+
+                    {/* Avatar with Neon Cyan Ring */}
+                    <View style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      borderWidth: 2,
+                      borderColor: '#00D9FF',
+                      backgroundColor: '#061A3A',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                      shadowColor: '#00D9FF',
+                      shadowOpacity: 0.9,
+                      shadowRadius: 10,
+                      elevation: 6
+                    }}>
+                      <FontAwesome5 name="user-alt" size={20} color="#F5F7FF" />
+                    </View>
+
+                    {/* Player Info Text */}
+                    <View style={{ flex: 1, justifyContent: 'center', zIndex: 10 }}>
+                      <Text style={{
+                        color: '#F5F7FF',
+                        fontWeight: '900',
+                        fontSize: 16,
+                        letterSpacing: 1,
+                        textTransform: 'uppercase'
+                      }} numberOfLines={1}>
+                        {myName}
+                      </Text>
+                      <Text style={{
+                        color: '#00D9FF',
+                        fontWeight: '800',
+                        fontSize: 11,
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                        marginTop: 1
+                      }}>
+                        YOU
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* [ CENTER STYLIZED ELECTRIC "VS" EMBLEM WITH ENERGY SLASHES ] */}
+                <View style={{ width: '22%', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
+                  <View style={{
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}>
+
+
+                    {/* The Interlocking Electric VS Letters - Larger & Dynamic */}
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'visible',
+                      position: 'relative'
+                    }}>
+                      <Text style={{
+                        fontSize: 56,
+                        fontWeight: '900',
+                        fontStyle: '',
+                        color: '#00AED1',
+                        letterSpacing: -5,
+                        textShadowColor: 'rgba(0, 174, 209, 0.3)',
+                        textShadowOffset: { width: -1, height: 1 },
+                        textShadowRadius: 2,
+                        lineHeight: 80,
+                        paddingLeft: 10,
+                        paddingRight: 24,
+                        paddingTop: 15,
+                        paddingBottom: 5,
+                        zIndex: 2
+                      }}>
+                        V 
+                      </Text>
+
+                      {/* Divider Line / Energy Beam */}
+                      <View style={{
+                        position: 'absolute',
+                        width: 2.5,
+                        height: 85,
+                        transform: [{ rotate: '18deg' }, { translateX: -1 }, { translateY: 8 }],
+                        shadowColor: '#00D9FF',
+                        shadowOpacity: 1,
+                        shadowRadius: 10,
+                        zIndex: 3,
+                        marginLeft: 3.4,
+                        borderRadius: 2,
+                        overflow: 'hidden'
+                      }}>
+                        <LinearGradient
+                          colors={['transparent', '#00D9FF', '#00D9FF', 'transparent']}
+                          locations={[0, 0.2, 0.8, 1]}
+                          style={{ flex: 1 }}
+                        />
+                      </View>
+
+                      <Text style={{
+                        fontSize: 56,
+                        fontWeight: '900',
+                        fontStyle: 'italic',
+                        color: '#9126D1',
+                        letterSpacing: -2,
+                        marginLeft: -40,
+                        textShadowColor: 'rgba(145, 38, 209, 0.3)',
+                        textShadowOffset: { width: 1, height: -1 },
+                        textShadowRadius: 2,
+                        lineHeight: 80,
+                        paddingLeft: 20,
+                        paddingRight: 10,
+                        paddingTop: 15,
+                        paddingBottom: 5,
+                        zIndex: 1
+                      }}>
+                        S
+                      </Text>
+                    </View>
+                    </View>
+                  </View>
+
+                {/* [ OPPONENT CARD WITH MOVING COLOR BORDER ] */}
+                <View style={{ width: '34%', maxWidth: 245, minWidth: 185, height: 72, position: 'relative' }}>
+
+                  {/* Main Rounded Card Box */}
+                  <View style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(7, 20, 38, 0.88)',
+                    borderWidth: 1.5,
+                    borderColor: '#5A18A8',
+                    borderRadius: 18,
+                    paddingLeft: 16,
+                    paddingRight: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    {/* MOVING BORDER COLOR BEAM (ANIMATED LIGHT SWEEP) */}
+                    <Animated.View
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        width: 140,
+                        transform: [{ translateX: borderBeamOpponent as any }],
+                        opacity: 0.8
+                      }}
+                      pointerEvents="none"
+                    >
+                      <LinearGradient
+                        colors={['transparent', 'rgba(90, 24, 168, 0.4)', 'rgba(184, 60, 255, 0.9)', 'transparent']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
+
+                    {/* Opponent Info Text */}
+                    <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center', zIndex: 10, marginRight: 12 }}>
+                      <Text style={{
+                        color: '#F5F7FF',
+                        fontWeight: '800',
+                        fontSize: 9.5,
+                        letterSpacing: 1.5,
+                        textTransform: 'uppercase'
+                      }} numberOfLines={1}>
+                        WAITING FOR
+                      </Text>
+                      <Text style={{
+                        color: '#B83CFF',
+                        fontWeight: '900',
+                        fontSize: 13,
+                        letterSpacing: 2,
+                        textTransform: 'uppercase',
+                        marginTop: 1
+                      }}>
+                        OPPONENT
+                      </Text>
+                    </View>
+
+                    {/* Avatar with Neon Purple Ring */}
+                    <View style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      borderWidth: 2,
+                      borderColor: '#B83CFF',
+                      backgroundColor: '#061A3A',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      shadowColor: '#B83CFF',
+                      shadowOpacity: 0.9,
+                      shadowRadius: 10,
+                      elevation: 6
+                    }}>
+                      <FontAwesome5 name="question" size={20} color="#B83CFF" />
+                    </View>
+                  </View>
+                </View>
+
+              </View>
+
+              {/* --- BOTTOM SECTION: QUEUE TIME CAPSULE WITH INTEGRATED CANCEL 'X' --- */}
+              <View style={{ width: '100%', alignItems: 'center', marginBottom: 2 }} pointerEvents="box-none">
+                
+                {/* Pill Capsule */}
+                <View style={{
+                  width: 250,
+                  height: 46,
+                  borderRadius: 23,
+                  backgroundColor: 'rgba(7, 20, 38, 0.92)',
+                  borderWidth: 1.5,
+                  borderColor: 'rgba(0, 217, 255, 0.45)',
+                  shadowColor: '#00D9FF',
+                  shadowOpacity: 0.35,
+                  shadowRadius: 12,
+                  elevation: 6,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 8,
+                  position: 'relative'
+                }}>
+                  {/* Subtle gradient inside */}
+                  <LinearGradient
+                    colors={['rgba(0, 217, 255, 0.12)', 'rgba(184, 60, 255, 0.12)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 23 }}
+                  />
+
+                  {/* Left: Clock Icon (Full size, no border) */}
+                  <View style={{
+                    width: 32,
+                    height: 32,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginLeft: 2
+                  }}>
+                    <Feather
+                      name="clock"
+                      size={24}
+                      color="#00D9FF"
+                      style={{
+                        shadowColor: '#00D9FF',
+                        shadowOpacity: 0.8,
+                        shadowRadius: 8
+                      }}
+                    />
+                  </View>
+
+                  {/* Center: Queue Time Labels */}
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{
+                      color: '#A8B6CC',
+                      fontSize: 8,
+                      fontWeight: '800',
+                      letterSpacing: 2,
+                      textTransform: 'uppercase',
+                      marginBottom: 1
+                    }}>
+                      QUEUE TIME
+                    </Text>
+                    <Text style={{
+                      color: '#FFFFFF',
+                      fontSize: 17,
+                      fontWeight: '900',
+                      letterSpacing: 2.5,
+                      textShadowColor: 'rgba(0, 217, 255, 0.5)',
+                      textShadowOffset: { width: 0, height: 0 },
+                      textShadowRadius: 6,
+                      lineHeight: 19
+                    }}>
+                      {formatTime(searchTime)}
+                    </Text>
+                  </View>
+
+                  {/* Right Corner: The Red Circular 'X' Cancel Button */}
+                  <TouchableOpacity
+                    onPress={onExit}
+                    activeOpacity={0.7}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      backgroundColor: '#FF3B45',
+                      borderWidth: 1.5,
+                      borderColor: '#FFA5A9',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      shadowColor: '#FF3B45',
+                      shadowOpacity: 0.8,
+                      shadowRadius: 8,
+                      elevation: 5
+                    }}
+                  >
+                    <FontAwesome5 name="times" size={13} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+              </View>
+
             </View>
           </View>
         );
-      }
-
-      // Normal Room Lobby
+      }      // Normal Room Lobby
       return (
         <View className="space-y-6">
         {!isCasualMatch && (
@@ -892,10 +1361,10 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
             </TouchableOpacity>
           </View>
           <View className="absolute top-0 right-0 z-50 flex-row gap-2 mt-1 mr-1">
-            <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? 'bg-green-500 border-green-400' : 'bg-red-500/80 border-red-400/50'}`}>
+            <TouchableOpacity onPress={toggleMic} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${micEnabled ? '🎙️' : '🔇'}`}>
               <Text className="text-lg">{micEnabled ? '🎙️' : '🔇'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? 'bg-blue-500 border-blue-400' : 'bg-gray-500/80 border-gray-400/50'}`}>
+            <TouchableOpacity onPress={toggleSpeaker} className={`w-10 h-10 rounded-full items-center justify-center border-2 ${speakerEnabled ? '🔊' : '🔈'}`}>
               <Text className="text-lg">{speakerEnabled ? '🔊' : '🔈'}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setChatOpen(true)} className="w-10 h-10 rounded-full items-center justify-center border-2 bg-indigo-500 border-indigo-400 relative">
