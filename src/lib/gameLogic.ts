@@ -75,18 +75,14 @@ export function processAction(room: Room, playerId: string, action: UserAction):
            updates.p3_players = action.players;
         }
 
-        if (room.capacity === 2 && room.stage === 'team_toss') {
-          const p1HasTeam = isP1 ? true : !!room.p1_team;
-          const p2HasTeam = isP2 ? true : !!room.p2_team;
-          
-          if (p1HasTeam && p2HasTeam) {
+        if (room.capacity === 2 && (room.stage === 'team_selection_winner' || room.stage === 'team_selection_loser')) {
+          if (room.stage === 'team_selection_winner') {
+             updates.stage = 'team_selection_loser';
+          } else {
              updates.status = 'toss_call';
              updates.stage = null;
              updates.current_batsman = room.player1_id;
              updates.current_bowler = room.player2_id!;
-          } else {
-             updates.current_batsman = room.current_bowler;
-             updates.current_bowler = playerId;
           }
         } else {
           const p1Ready = isP1 || !!room.p1_team;
@@ -181,38 +177,8 @@ export function processAction(room: Room, playerId: string, action: UserAction):
 
     case 'toss_reveal':
       if (action.type === 'CONTINUE') {
-        const BOT_UUID = '00000000-0000-0000-0000-000000000000';
-        if (room.player2_id === BOT_UUID && room.current_batsman === BOT_UUID) {
-            const botChoosesBat = Math.random() > 0.5;
-            let nextStatus = room.p1_team ? 'select_roles' : 'playing';
-            let updates: any = { status: nextStatus, p1_throw: null, p2_throw: null, p3_throw: null };
-            
-            if (!botChoosesBat) {
-                updates.current_batsman = room.current_bowler;
-                updates.current_bowler = room.current_batsman;
-            }
-
-            if (nextStatus === 'select_roles') {
-                if (updates.current_batsman === BOT_UUID || (updates.current_batsman == null && room.current_batsman === BOT_UUID)) {
-                    updates.active_batsman_name = room.p2_players![room.p2_current_player_index || 0];
-                }
-                if (updates.current_bowler === BOT_UUID || (updates.current_bowler == null && room.current_bowler === BOT_UUID)) {
-                    updates.active_bowler_name = room.p2_players![Math.floor(Math.random() * room.p2_players!.length)];
-                }
-                
-                // If bot handles both roles (e.g. playing itself), though impossible in our flow
-                // Or if we only need one role from human, we just transition to the appropriate status
-                const newBatsman = updates.active_batsman_name !== undefined ? updates.active_batsman_name : room.active_batsman_name;
-                const newBowler = updates.active_bowler_name !== undefined ? updates.active_bowler_name : room.active_bowler_name;
-                if (newBatsman && !newBowler) updates.status = 'select_bowler';
-                if (!newBatsman && newBowler) updates.status = 'select_batsman';
-                if (newBatsman && newBowler) updates.status = 'playing';
-            }
-            
-            return updates;
-        }
         if (room.stage === 'team_toss') {
-            return { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null };
+            return { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null, stage: 'team_selection_winner' };
         }
         return { status: 'toss_decision', p1_throw: null, p2_throw: null, p3_throw: null };
       }

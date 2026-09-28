@@ -250,7 +250,10 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
           <View className="flex-1">
             {/* Top Matchmaking Heading */}
             <View className="absolute top-8 w-full items-center justify-center z-20" pointerEvents="none">
-               <Text className="text-4xl font-black text-white uppercase italic tracking-[0.2em]">MATCHMAKING...</Text>
+               <View className="bg-indigo-900/60 px-10 py-5 rounded-[2rem] border-4 border-cyan-400 mb-8 items-center shadow-xl">
+                 <Text className="text-4xl font-black text-cyan-400 uppercase italic tracking-[0.3em]">MATCHMAKING</Text>
+                 <View className="h-1.5 w-24 bg-yellow-400 mt-3 rounded-full animate-pulse" />
+               </View>
             </View>
 
             {/* Bottom Matchmaking Controls */}
