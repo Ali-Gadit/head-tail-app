@@ -432,7 +432,8 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
                 justifyContent: 'space-between',
                 width: '100%',
                 paddingHorizontal: 20,
-                marginVertical: 4
+                marginTop: -16,
+                marginBottom: 16
               }} pointerEvents="box-none">
                 
                 {/* [ PLAYER CARD (YOU) WITH MOVING COLOR BORDER ] */}
