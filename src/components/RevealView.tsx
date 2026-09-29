@@ -25,7 +25,7 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
       Animated.sequence([
         Animated.parallel([
           Animated.timing(heightAnim, {
-            toValue: -80,
+            toValue: -60,
             duration: 800,
             useNativeDriver: true,
           }),
@@ -100,7 +100,7 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
     });
 
     return (
-      <View className="flex-1 w-full items-center justify-center px-4 pt-10 pb-10">
+      <View className="flex-1 w-full px-2 justify-center items-center">
         
         {/* Animated Coin */}
         <Animated.View style={{ 
