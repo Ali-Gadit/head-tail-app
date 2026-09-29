@@ -99,7 +99,7 @@ function DashboardFriends({ userId, onOpenSettings, onOpenFriends }: { userId: s
   );
 }
 
-function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
+function Dashboard({ soundEnabled, setSoundEnabled, setAppMusicPlaying }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void, setAppMusicPlaying: (val: boolean) => void }) {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const [roomId, setRoomId] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
@@ -110,6 +110,15 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setShowOnboarding(true);
     }
   }, [user]);
+
+  // Handle music playing state
+  useEffect(() => {
+    if (room && room.status !== 'waiting') {
+      setAppMusicPlaying(false);
+    } else {
+      setAppMusicPlaying(true);
+    }
+  }, [room?.status, setAppMusicPlaying]);
 
   const [code, setCode] = useState('');
   const [gameMode, setGameMode] = useState<'PVP' | 'PVE'>('PVP');
@@ -151,7 +160,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             await api.addBotToRoom(result.room.id, user.id);
           } catch(e) {}
           setFindingRankedMatch(false);
-        }, 10000);
+        }, 2000);
       } else {
         setFindingRankedMatch(false);
       }
@@ -174,7 +183,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
       setRoomId(result.room.id);
       
       if (result.isNew) {
-        // Wait 60 seconds for someone to join, else add bot
+        // Wait 2 seconds for someone to join, else add bot
         setTimeout(async () => {
           try {
             const englishNames = ['John', 'Michael', 'David', 'James', 'William', 'Robert', 'Joseph', 'Charles', 'Thomas', 'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald', 'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin', 'Samuel'];
@@ -184,7 +193,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             // Probably someone joined already and player2_id is no longer null!
           }
           setFindingMatch(false);
-        }, 60000);
+        }, 2000);
       } else {
         setFindingMatch(false);
       }
@@ -212,7 +221,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
             const randomName = englishNames[Math.floor(Math.random() * englishNames.length)];
             await api.addBotToRoom(result.room.id, user!.id, randomName);
           } catch(e) {}
-        }, 60000);
+        }, 2000);
       }
     } catch (err: any) {
       setNotification({ title: 'Error', message: err.message });
@@ -642,7 +651,7 @@ function Dashboard({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, s
   );
 }
 
-function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void }) {
+function Main({ soundEnabled, setSoundEnabled, setAppMusicPlaying }: { soundEnabled: boolean, setSoundEnabled: (val: boolean) => void, setAppMusicPlaying: (val: boolean) => void }) {
   const { user, loading } = useAuth();
   const [showInitialLoading, setShowInitialLoading] = useState(true);
   const [showTransition, setShowTransition] = useState(false);
@@ -661,13 +670,11 @@ function Main({ soundEnabled, setSoundEnabled }: { soundEnabled: boolean, setSou
   }
 
   if (showTransition) {
-    // We already know they are authenticated, so isReady is true. 
-    // The loading screen will take exactly 1 second to fill to 100% and then reveal the dashboard.
     return <LoadingScreen isReady={true} onComplete={() => setShowTransition(false)} />;
   }
 
   if (user) {
-    return <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />;
+    return <Dashboard soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} setAppMusicPlaying={setAppMusicPlaying} />;
   }
 
   return (
@@ -681,6 +688,7 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [networkChecked, setNetworkChecked] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [appMusicPlaying, setAppMusicPlaying] = useState(true);
   const [showIntro, setShowIntro] = useState(true);
 
   const checkNetwork = async () => {
@@ -708,7 +716,6 @@ export default function App() {
   }
 
   if (!networkChecked) {
-    // Network check usually finishes during the 3.5 second IntroScreen, but if not, fallback to black
     return (
       <>
         <StatusBar hidden={true} />
@@ -726,8 +733,8 @@ export default function App() {
     <AuthProvider>
       <StatusBar hidden={true} />
       <NavigationBar hidden={true} />
-      <Main soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} />
-      <BackgroundMusic enabled={soundEnabled} />
+      <Main soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} setAppMusicPlaying={setAppMusicPlaying} />
+      <BackgroundMusic enabled={soundEnabled && appMusicPlaying} />
     </AuthProvider>
   );
 }

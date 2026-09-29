@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Animated, Vibration } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Vibration, Image } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { createAudioPlayer } from 'expo-audio';
 import { Room } from '../lib/types';
 
@@ -19,20 +21,11 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
 
   useEffect(() => {
     if (type === 'toss') {
-      const playSound = () => {
-        try {
-          const player = createAudioPlayer('https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d1e1f1484.mp3');
-          player.play();
-        } catch (e) {
-          console.log('Audio play failed', e);
-        }
-      };
-      
 
       Animated.sequence([
         Animated.parallel([
           Animated.timing(heightAnim, {
-            toValue: -250,
+            toValue: -80,
             duration: 800,
             useNativeDriver: true,
           }),
@@ -55,13 +48,15 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
           })
         ])
       ]).start(() => {
-                Vibration.vibrate(100);
+        Vibration.vibrate(100);
         setShowResult(true);
         Animated.timing(opacityAnim, {
           toValue: 1,
           duration: 500,
           useNativeDriver: true,
-        }).start();
+        }).start(() => {
+          setTimeout(() => onContinue(), 2500);
+        });
       });
     } else {
       const timer = setTimeout(() => setShowResult(true), 1500);
@@ -90,65 +85,167 @@ export default function RevealView({ room, playerId, type, onContinue }: RevealV
     const isOdd = sum % 2 !== 0;
     
     // Caller is always the one who initiated toss_call
-    // But since the database sets current_batsman to the winner, we don't know who called what exactly.
-    // However, the caller's call is in room.toss_call ('head' or 'tail').
-    // Let's just figure out the final face of the coin.
     // If the winner chose 'head', it landed on 'head'.
     const winningFace = room.toss_call === 'head' ? (isOdd ? 'H' : 'T') : (isOdd ? 'T' : 'H');
     
+    const p1Name = room.p1_name;
+    const p2Name = room.p2_name || 'OPPONENT';
+    const p1Choice = room.toss_call === 'head' ? 'HEADS' : 'TAILS';
+    const p2Choice = room.toss_call === 'head' ? 'TAILS' : 'HEADS';
+    const winnerName = batName;
+
     const spin = flipAnim.interpolate({
       inputRange: [0, 6],
       outputRange: ['0deg', '2160deg'] // 6 full rotations on X axis
     });
 
     return (
-      <View className="items-center justify-center flex-1 w-full px-6">
-        <Animated.View style={{ transform: [{ translateY: heightAnim }, { rotateX: spin }] }} className="w-48 h-48 rounded-full items-center justify-center border-[10px] border-yellow-600 bg-yellow-400 mb-8 shadow-[0_20px_50px_rgba(202,138,4,0.5)]">
-           <Text className="text-8xl font-black text-yellow-800">
+      <View className="flex-1 w-full items-center justify-center px-4 pt-10 pb-10">
+        
+        {/* Animated Coin */}
+        <Animated.View style={{ 
+          width: 96, 
+          height: 96, 
+          borderRadius: 48, 
+          borderWidth: 6, 
+          borderColor: '#ca8a04', 
+          backgroundColor: '#facc15', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          transform: [{ translateY: heightAnim }, { rotateX: spin }], 
+          zIndex: 20,
+          marginBottom: 12,
+          shadowColor: '#ca8a04',
+          shadowOpacity: 0.6,
+          shadowRadius: 15,
+          elevation: 10
+        }}>
+           <Text className="text-5xl font-black text-yellow-900">
              {showResult ? winningFace : '?'}
            </Text>
-           {showResult && <Text className="text-sm font-black text-yellow-800 uppercase tracking-widest mt-2">{winningFace === 'H' ? 'HEADS' : 'TAILS'}</Text>}
+           {showResult && <Text className="text-[10px] font-black text-yellow-900 uppercase tracking-widest mt-0.5">{winningFace === 'H' ? 'HEADS' : 'TAILS'}</Text>}
         </Animated.View>
         
         {showResult ? (
-          <Animated.View style={{ opacity: opacityAnim }} className="items-center w-full">
+          <Animated.View style={{ opacity: opacityAnim, width: '100%', alignItems: 'center' }}>
             
-            {/* What both players threw */}
-            <View className="bg-indigo-900/60 w-full p-4 rounded-3xl border border-indigo-500 mb-6 flex-row justify-between items-center shadow-lg">
-              <View className="items-center flex-1">
-                 <Text className="text-white/60 font-black text-[10px] uppercase tracking-widest mb-1" numberOfLines={1}>{batName}</Text>
-                 <Text className="text-white font-black text-3xl">{bT}</Text>
+            {/* TOSS RESULT BANNER */}
+            <View style={{ 
+              width: '90%', 
+              backgroundColor: 'rgba(2, 17, 36, 0.95)', 
+              borderRadius: 20, 
+              borderWidth: 2, 
+              borderColor: '#005580', 
+              paddingVertical: 8, 
+              flexDirection: 'row', 
+              alignItems: 'stretch',
+              marginBottom: 12,
+              shadowColor: '#0090FF',
+              shadowOpacity: 0.2,
+              shadowRadius: 10,
+              elevation: 5
+            }}>
+              
+              {/* Left Side (Player 1) */}
+              <View style={{ flex: 1.2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.5)', borderWidth: 1.5, borderColor: '#005580', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                  <FontAwesome5 name={winnerName === p1Name ? "crown" : "user-alt"} size={16} color="#A8B6CC" />
+                </View>
+                
+                <Text style={{ color: '#F5F7FF', fontWeight: '800', fontSize: 11, letterSpacing: 1, marginBottom: 2 }} numberOfLines={1}>{p1Name}</Text>
+                
+                <View style={{ height: 18, backgroundColor: 'rgba(0, 0, 0, 0.5)', borderWidth: 1, borderColor: '#003366', borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 12 }}>
+                  <Text style={{ color: '#A8B6CC', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginRight: 2 }}>CHOSE:</Text>
+                  <Text style={{ color: '#00D9FF', fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>{p1Choice}</Text>
+                </View>
               </View>
-              <View className="items-center px-4">
-                 <Text className="text-cyan-400 font-black text-xl">+</Text>
-                 <Text className="text-yellow-400 font-black text-xl mt-1">=</Text>
+
+              {/* Left Vertical Divider */}
+              <View style={{ width: 1, height: '70%', backgroundColor: 'rgba(0, 217, 255, 0.3)', alignSelf: 'center' }} />
+
+              {/* Center Side (Winner) */}
+              <View style={{ flex: 1.4, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 }}>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center', marginBottom: 2 }}>
+                    <LinearGradient colors={['rgba(0, 217, 255, 0)', '#00D9FF']} start={{x:0, y:0}} end={{x:1, y:0}} style={{ height: 2, width: 48, marginRight: 8 }} />
+                    <View style={{ backgroundColor: 'rgba(19, 53, 89, 0.8)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 }}>
+                       <Text style={{ color: '#A8B6CC', fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>TOSS RESULT</Text>
+                    </View>
+                    <LinearGradient colors={['#00D9FF', 'rgba(0, 217, 255, 0)']} start={{x:0, y:0}} end={{x:1, y:0}} style={{ height: 2, width: 48, marginLeft: 8 }} />
+                 </View>
+                 
+                 <Text style={{ color: '#F5F7FF', fontSize: 28, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center', textShadowColor: 'rgba(0, 217, 255, 0.6)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 }} numberOfLines={1}>{winnerName}</Text>
+                 <Text style={{ color: '#00D9FF', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 2, marginTop: -2 }}>WON THE TOSS</Text>
               </View>
-              <View className="items-center flex-1">
-                 <Text className="text-white/60 font-black text-[10px] uppercase tracking-widest mb-1" numberOfLines={1}>{bowlName}</Text>
-                 <Text className="text-white font-black text-3xl">{boT}</Text>
+
+              {/* Right Vertical Divider */}
+              <View style={{ width: 1, height: '70%', backgroundColor: 'rgba(0, 217, 255, 0.3)', alignSelf: 'center' }} />
+
+              {/* Right Side (Player 2) */}
+              <View style={{ flex: 1.2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.5)', borderWidth: 1.5, borderColor: '#005580', alignItems: 'center', justifyContent: 'center', marginBottom: 2 }}>
+                  <FontAwesome5 name={winnerName === p2Name ? "crown" : "user"} size={16} color="#A8B6CC" />
+                </View>
+                
+                <Text style={{ color: '#F5F7FF', fontWeight: '800', fontSize: 11, letterSpacing: 1, marginBottom: 2 }} numberOfLines={1}>{p2Name}</Text>
+                
+                <View style={{ height: 18, backgroundColor: 'rgba(0, 0, 0, 0.5)', borderWidth: 1, borderColor: '#003366', borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', paddingHorizontal: 12 }}>
+                  <Text style={{ color: '#A8B6CC', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginRight: 2 }}>CHOSE:</Text>
+                  <Text style={{ color: '#00D9FF', fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>{p2Choice}</Text>
+                </View>
               </View>
-              <View className="items-center px-4">
-                 <Text className="text-indigo-900 font-black text-xl">→</Text>
+
+            </View>
+
+            {/* PLAYER CHOICES BANNER */}
+            <View style={{ 
+              width: '60%', 
+              backgroundColor: 'rgba(2, 17, 36, 0.95)', 
+              borderRadius: 16, 
+              borderWidth: 2, 
+              borderColor: '#005580', 
+              paddingTop: 12, 
+              paddingBottom: 12, 
+              paddingHorizontal: 8, 
+              marginTop: 2,
+              shadowColor: '#0090FF',
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.4,
+              shadowRadius: 12,
+              elevation: 8
+            }}>
+              {/* Title Inside the Box */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12, paddingHorizontal: 16 }}>
+                 <LinearGradient colors={['rgba(0, 217, 255, 0)', '#00D9FF']} start={{x:0, y:0}} end={{x:1, y:0}} style={{ height: 2, width: 48, marginRight: 12 }} />
+                 <Text style={{ color: '#F5F7FF', fontSize: 10, fontWeight: '900', letterSpacing: 2 }}>PLAYER CHOICES</Text>
+                 <LinearGradient colors={['#00D9FF', 'rgba(0, 217, 255, 0)']} start={{x:0, y:0}} end={{x:1, y:0}} style={{ height: 2, width: 48, marginLeft: 12 }} />
               </View>
-              <View className="items-center flex-1 bg-white/10 py-2 rounded-xl border border-white/20">
-                 <Text className="text-yellow-400 font-black text-2xl">{sum}</Text>
-                 <Text className="text-white/70 font-black text-[10px] uppercase tracking-widest mt-1">{isOdd ? 'ODD' : 'EVEN'}</Text>
+
+              {/* Row for Choice Boxes */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
+                 {/* P1 Choice Box */}
+                 <View style={{ width: '42%', paddingVertical: 12, paddingHorizontal: 6, backgroundColor: 'rgba(0, 0, 0, 0.4)', borderRadius: 12, borderWidth: 1, borderColor: '#005580', flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: '#005580', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                       <Text style={{ fontSize: 16 }}>{getEmoji(p1T)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                       <Text style={{ color: '#F5F7FF', fontSize: 9, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' }} numberOfLines={1}>{p1Name}</Text>
+                       <Text style={{ color: '#00D9FF', fontSize: 14, fontWeight: '900', letterSpacing: 1, marginTop: 1 }}>{p1T || '?'}</Text>
+                    </View>
+                 </View>
+
+                 {/* P2 Choice Box */}
+                 <View style={{ width: '42%', paddingVertical: 12, paddingHorizontal: 6, backgroundColor: 'rgba(0, 0, 0, 0.4)', borderRadius: 12, borderWidth: 1, borderColor: '#005580', flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: '#005580', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                       <Text style={{ fontSize: 16 }}>{getEmoji(p2T)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                       <Text style={{ color: '#F5F7FF', fontSize: 9, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' }} numberOfLines={1}>{p2Name}</Text>
+                       <Text style={{ color: '#00D9FF', fontSize: 14, fontWeight: '900', letterSpacing: 1, marginTop: 1 }}>{p2T || '?'}</Text>
+                    </View>
+                 </View>
               </View>
             </View>
 
-            {/* Smexy Winner Banner */}
-            <View className="bg-gradient-to-r from-yellow-500 to-yellow-300 w-full py-6 rounded-3xl items-center border-4 border-yellow-200 mb-8 shadow-[0_10px_30px_rgba(253,224,71,0.4)]">
-              <Text className="text-yellow-900 font-black text-3xl uppercase tracking-widest text-center px-4">
-                {batName}
-              </Text>
-              <Text className="text-yellow-800 font-bold text-sm uppercase tracking-[0.3em] mt-1">
-                Won The Toss
-              </Text>
-            </View>
-
-            <TouchableOpacity onPress={onContinue} className="bg-white/10 px-10 py-4 rounded-full active:scale-95 border-2 border-white/30">
-              <Text className="text-white font-black text-xl uppercase tracking-widest">Continue</Text>
-            </TouchableOpacity>
           </Animated.View>
         ) : (
           <Text className="text-yellow-400/80 font-bold text-xl animate-pulse uppercase tracking-[0.3em] mt-10">Tossing...</Text>

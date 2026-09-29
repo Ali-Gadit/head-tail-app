@@ -291,7 +291,7 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
                 blurRadius={2}
               />
               {/* Dark Gradient Overlay to ensure neon colors pop */}
-              <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(5, 12, 25, 0.65)' }} />
+              <View style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(5, 12, 25, 0.95)' }} />
             </View>
 
             {/* 2. Main Content Container - Perfect Landscape Layout */}
