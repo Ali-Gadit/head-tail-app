@@ -198,6 +198,26 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
     }
   }, [myDbThrow]);
 
+  useEffect(() => {
+    if (!room || !isHost) return;
+    const isBot = room.player2_id === '00000000-0000-0000-0000-000000000000';
+    if (!isBot) return;
+
+    if (room.status === 'toss_call' && room.current_batsman === room.player2_id) {
+       const timer = setTimeout(() => {
+          takeAction({ type: 'TOSS_CALL', choice: Math.random() > 0.5 ? 'head' : 'tail' } as any, room.player2_id);
+       }, 2500);
+       return () => clearTimeout(timer);
+    }
+
+    if (room.status === 'toss_decision' && room.current_batsman === room.player2_id) {
+       const timer = setTimeout(() => {
+          takeAction({ type: 'TOSS_DECISION', choice: Math.random() > 0.5 ? 'bat' : 'bowl' } as any, room.player2_id);
+       }, 2500);
+       return () => clearTimeout(timer);
+    }
+  }, [room.status, room.current_batsman, isHost]);
+
   const handleExit = async () => {
     Alert.alert('Exit Room', 'Are you sure you want to leave?', [
       { text: 'Cancel', style: 'cancel' },
@@ -216,20 +236,21 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
     ]);
   };
 
-  const takeAction = async (action: UserAction) => { console.log('[GameRoom.takeAction] Started with action:', action);
+  const takeAction = async (action: UserAction, overrideActorId?: string) => { console.log('[GameRoom.takeAction] Started with action:', action);
     setLoading(true);
+    const actorId = overrideActorId || playerId;
     try {
-      if (action.type === 'THROW') {
+      if (action.type === 'THROW' && actorId === playerId) {
         setMyThrowInPlay(action.fingers);
       }
       if (onAction) await onAction(action);
-      else { const updatedRoom = await api.takeAction(room.id, playerId, action); if (onUpdateRoom) onUpdateRoom(updatedRoom); }
+      else { const updatedRoom = await api.takeAction(room.id, actorId, action); if (onUpdateRoom) onUpdateRoom(updatedRoom); }
       if (action.type === 'CONTINUE' || action.type === 'PLAY_AGAIN') {
-        setMyThrowInPlay(null);
+        if (actorId === playerId) setMyThrowInPlay(null);
       }
     } catch (err: any) { console.error('[GameRoom.takeAction] Error caught:', err);
       console.error('takeAction error:', err); Alert.alert('Error', err.message || 'Failed to take action');
-      setMyThrowInPlay(null);
+      if (actorId === playerId) setMyThrowInPlay(null);
     } finally { console.log('[GameRoom.takeAction] Finally block reached, setting loading false');
       setLoading(false);
     }
@@ -897,11 +918,16 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
     const isP3 = playerId === room.player3_id;
     const myTeam = isP1 ? room.p1_team : (isP2 ? room.p2_team : room.p3_team);
 
-    if (room.capacity === 2 && playerId !== room.current_batsman) {
+    const isMyTurn = room.capacity !== 2 || 
+                     !room.stage || // 3P or standard bot match (stage is null)
+                     (room.stage === 'team_selection_winner' && playerId === room.current_batsman) ||
+                     (room.stage === 'team_selection_loser' && playerId === room.current_bowler);
+
+    if (!isMyTurn) {
        return (
          <View className="space-y-6 flex-1 items-center justify-center">
             <Text className="text-white text-3xl font-black uppercase text-center mb-4">Opponent's Turn</Text>
-            <Text className="text-white/50 font-bold animate-pulse text-lg text-center">They won the toss and are picking their team...</Text>
+            <Text className="text-white/50 font-bold animate-pulse text-lg text-center">They are picking their team...</Text>
          </View>
        );
     }

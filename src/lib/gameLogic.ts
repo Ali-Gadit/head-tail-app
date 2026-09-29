@@ -1,4 +1,5 @@
 import { Room, UserAction } from './types';
+import { CRICKET_TEAMS, TEAM_NAMES } from './teams';
 
 export function processAction(room: Room, playerId: string, action: UserAction): Partial<Room> {
   const isP1 = playerId === room.player1_id;
@@ -76,8 +77,27 @@ export function processAction(room: Room, playerId: string, action: UserAction):
         }
 
         if (room.capacity === 2 && (room.stage === 'team_selection_winner' || room.stage === 'team_selection_loser')) {
+          const BOT_UUID = '00000000-0000-0000-0000-000000000000';
+          const isBot = room.player2_id === BOT_UUID;
+          
           if (room.stage === 'team_selection_winner') {
              updates.stage = 'team_selection_loser';
+             
+             if (isBot && room.current_bowler === BOT_UUID) {
+                // User won toss, selected team. Now bot (loser) selects.
+                const userTeam = updates.p1_team || room.p1_team;
+                const availableTeams = TEAM_NAMES.filter(t => t !== userTeam);
+                const randomTeamName = availableTeams[Math.floor(Math.random() * availableTeams.length)];
+                const randomPlayers = [...CRICKET_TEAMS[randomTeamName]].sort(() => 0.5 - Math.random()).slice(0, (room.wickets_limit || 3) + 1);
+                
+                updates.p2_team = randomTeamName;
+                updates.p2_players = randomPlayers;
+                
+                updates.status = 'toss_call';
+                updates.stage = null;
+                updates.current_batsman = room.player1_id;
+                updates.current_bowler = room.player2_id!;
+             }
           } else {
              updates.status = 'toss_call';
              updates.stage = null;
@@ -178,7 +198,21 @@ export function processAction(room: Room, playerId: string, action: UserAction):
     case 'toss_reveal':
       if (action.type === 'CONTINUE') {
         if (room.stage === 'team_toss') {
-            return { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null, stage: 'team_selection_winner' };
+            const BOT_UUID = '00000000-0000-0000-0000-000000000000';
+            const isBot = room.player2_id === BOT_UUID;
+            const botWinsToss = isBot && room.current_batsman === BOT_UUID;
+            
+            let updates: Partial<Room> = { status: 'team_selection', p1_throw: null, p2_throw: null, p3_throw: null, stage: 'team_selection_winner' };
+            
+            if (botWinsToss) {
+               // Bot won toss! Bot selects FIRST.
+               updates.stage = 'team_selection_loser'; // Jump straight to loser phase for user
+               const randomTeamName = TEAM_NAMES[Math.floor(Math.random() * TEAM_NAMES.length)];
+               const randomPlayers = [...CRICKET_TEAMS[randomTeamName]].sort(() => 0.5 - Math.random()).slice(0, (room.wickets_limit || 3) + 1);
+               updates.p2_team = randomTeamName;
+               updates.p2_players = randomPlayers;
+            }
+            return updates;
         }
         return { status: 'toss_decision', p1_throw: null, p2_throw: null, p3_throw: null };
       }
