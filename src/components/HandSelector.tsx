@@ -5,9 +5,10 @@ interface HandSelectorProps {
   maxFingers?: number;
   onSelect: (fingers: number) => void;
   disabled?: boolean;
+  selectedValue?: number | null;
 }
 
-export default function HandSelector({ maxFingers = 6, onSelect, disabled }: HandSelectorProps) {
+export default function HandSelector({ maxFingers = 6, onSelect, disabled, selectedValue = null }: HandSelectorProps) {
   const options = Array.from({ length: maxFingers }, (_, i) => i + 1);
 
   // Fallback emojis in case images are not used yet
@@ -17,17 +18,22 @@ export default function HandSelector({ maxFingers = 6, onSelect, disabled }: Han
 
   return (
     <View className="flex-row flex-wrap justify-center gap-3">
-      {options.map((num) => (
-        <TouchableOpacity
-          key={num}
-          disabled={disabled}
-          onPress={() => onSelect(num)}
-          className={`w-20 h-24 bg-white rounded-3xl items-center justify-center shadow-xl border-b-4 border-gray-300 active:bg-gray-100 ${disabled ? 'opacity-50' : 'active:scale-95'}`}
-        >
-          <Text className="text-4xl">{emojiMap[num]}</Text>
-          <Text className="text-xl font-black text-indigo-900 mt-1">{num}</Text>
-        </TouchableOpacity>
-      ))}
+      {options.map((num) => {
+        const isSelected = selectedValue === num;
+        return (
+          <TouchableOpacity
+            key={num}
+            disabled={disabled || selectedValue !== null}
+            onPress={() => onSelect(num)}
+            className={`w-20 h-24 rounded-3xl items-center justify-center shadow-xl border-b-4 ${
+              isSelected ? 'bg-cyan-300 border-cyan-400 scale-110' : 'bg-white border-gray-300 active:bg-gray-100'
+            } ${disabled && !isSelected ? 'opacity-50' : 'active:scale-95'}`}
+          >
+            <Text className="text-4xl">{emojiMap[num]}</Text>
+            <Text className="text-xl font-black text-indigo-900 mt-1">{num}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
