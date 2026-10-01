@@ -998,7 +998,15 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
         setSelectedPlayers(prev => prev.filter(x => x !== p));
         if (captain === p) setCaptain(null);
       } else if (selectedPlayers.length < requiredPlayers) {
-        setSelectedPlayers(prev => [...prev, p]);
+        setSelectedPlayers(prev => {
+          const next = [...prev, p];
+          if (next.length === requiredPlayers) {
+            setTimeout(() => {
+              draftScrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 150);
+          }
+          return next;
+        });
       }
     };
 
@@ -1006,6 +1014,12 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
       const newNames = [...customPlayerNames];
       newNames[index] = value;
       setCustomPlayerNames(newNames);
+      const validCount = newNames.filter(n => n.trim() !== '').length;
+      if (validCount === requiredPlayers && value.trim() !== '' && customPlayerNames[index].trim() === '') {
+        setTimeout(() => {
+          draftScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 150);
+      }
     };
     const FLAG_MAP: Record<string, string> = {
       India: '🇮🇳', Australia: '🇦🇺', England: '🇬🇧', Pakistan: '🇵🇰',
@@ -1054,9 +1068,13 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
                       className={`w-[23%] h-16 rounded-xl border-2 items-center justify-center overflow-hidden p-1 ${isTaken ? 'bg-black border-slate-900' : 'bg-slate-800 border-slate-600 shadow-lg active:scale-95'}`}
                     >
                       <Text className="text-4xl mb-0.5">{FLAG_MAP[t]}</Text>
-                      <Text 
-                        className={`text-[8px] font-black uppercase tracking-tighter text-center leading-[9px] text-white/90`}
-                      >{t}</Text>
+                      <View className="w-full px-0.5">
+                        <Text 
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          className={`text-[9px] font-black uppercase tracking-tighter text-center leading-[10px] text-white/90 w-full`}
+                        >{t}</Text>
+                      </View>
                       {isTaken && (
                         <View className="absolute inset-0 items-center justify-center bg-black/40 rounded-xl">
                           <View className="w-full bg-white/70 py-1.5 border-y border-white/40 shadow-lg items-center">
@@ -1178,8 +1196,8 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
             </ScrollView>
           ) : (
             <ScrollView ref={draftScrollViewRef} onTouchStart={() => scrollAnimRef.current && cancelAnimationFrame(scrollAnimRef.current)} onScrollBeginDrag={() => scrollAnimRef.current && cancelAnimationFrame(scrollAnimRef.current)} className="flex-1 mt-2" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-               <View className="w-full px-14 items-center justify-center mb-6 mt-2">
-                 <Text className="text-white text-3xl font-black uppercase tracking-tight text-center shadow-2xl">
+               <View className="w-full px-4 justify-center mb-6 mt-2">
+                 <Text numberOfLines={1} adjustsFontSizeToFit className="text-white text-3xl font-black uppercase tracking-tight text-center shadow-2xl w-full">
                    {FLAG_MAP[selectedTeam!]} {selectedTeam}
                  </Text>
                </View>
