@@ -1338,7 +1338,11 @@ export default function GameRoom({ room, playerId, onExit, onAction, onUpdateRoo
         </View>
 
         <View className="flex-1 items-center justify-center z-10 w-full px-12 mt-20" pointerEvents="box-none">
-          <Text className="text-4xl font-black uppercase italic tracking-widest mb-2 text-yellow-400">
+          <Text 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            className="text-4xl font-black uppercase italic tracking-widest mb-2 text-yellow-400 w-full text-center px-4"
+          >
             {room.stage === 'team_toss' ? 'Team Selection Toss' : 'Match Toss'}
           </Text>
           <Text className="text-white text-lg font-bold uppercase tracking-widest mb-12 opacity-80">
